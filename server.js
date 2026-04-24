@@ -78,7 +78,7 @@ async function handleApi(req, res, parsedUrl) {
       return;
     }
 
-    const match = pathname.match(/^\/api\/shifts\/(\d{4}-\d{2}-\d{2})(?:\/(replace|swap))?$/);
+    const match = pathname.match(/^\/api\/shifts\/(\d{4}-\d{2}-\d{2})(?:\/(replace|swap|undo))?$/);
     if (!match) {
       throw new HttpError(404, "요청한 API를 찾을 수 없습니다.");
     }
@@ -106,6 +106,12 @@ async function handleApi(req, res, parsedUrl) {
     if (req.method === "PATCH" && action === "swap") {
       const body = await readRequestJson(req);
       await swapWorkers(res, date, body);
+      return;
+    }
+
+    if (req.method === "PATCH" && action === "undo") {
+      const body = await readRequestJson(req);
+      await undoShift(res, date, body);
       return;
     }
 
@@ -184,6 +190,8 @@ async function saveShift(res, date, body) {
       location: "전체",
       beforeWorkers: existing ? workerSnapshot(existing) : null,
       afterWorkers: workerSnapshot(nextShift),
+      beforeSchedule: existing ? workerSnapshot(existing) : null,
+      afterSchedule: workerSnapshot(nextShift),
       changedBy: actor,
       reason,
       createdAt: now,
@@ -191,6 +199,71 @@ async function saveShift(res, date, body) {
 
     await writeDb(db);
     return { shift: toPublicShift(nextShift), history: db.history.filter((entry) => entry.shiftDate === date) };
+  });
+
+  sendJson(res, 200, result);
+}
+
+async function undoShift(res, date, body) {
+  const result = await withDbLock(async () => {
+    const db = await readDb();
+    const existing = db.shifts[date];
+    if (!existing) {
+      throw new HttpError(404, "되돌릴 근무표가 없습니다.");
+    }
+
+    requireEditPin(body.editPin);
+    assertRevisionMatches(existing, body.revision);
+
+    const actor = requireActor(body.changedBy);
+    const reason = normalizeOptionalText(body.reason) || "직전 변경 되돌리기";
+    const latestEntry = [...db.history]
+      .filter((entry) => entry.shiftDate === date)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+
+    if (!latestEntry) {
+      throw new HttpError(400, "되돌릴 변경 이력이 없습니다.");
+    }
+
+    const previousSchedule = latestEntry.beforeSchedule ?? latestEntry.beforeWorkers ?? null;
+    const beforeShift = cloneShift(existing);
+    const now = new Date().toISOString();
+    let nextShift = null;
+
+    if (previousSchedule) {
+      nextShift = {
+        date,
+        taxOfficeWorkers: normalizeWorkerPair(previousSchedule.taxOfficeWorkers, "세무서"),
+        districtOfficeWorkers: normalizeWorkerPair(previousSchedule.districtOfficeWorkers, "구청 신고창구"),
+        updatedAt: now,
+        updatedBy: actor,
+        revision: existing.revision + 1,
+      };
+      assertValidAssignments(nextShift.taxOfficeWorkers, nextShift.districtOfficeWorkers);
+      db.shifts[date] = nextShift;
+    } else {
+      delete db.shifts[date];
+    }
+
+    db.history.push({
+      id: randomUUID(),
+      shiftDate: date,
+      action: "undo",
+      location: "전체",
+      beforeWorkers: workerSnapshot(beforeShift),
+      afterWorkers: nextShift ? workerSnapshot(nextShift) : null,
+      beforeSchedule: workerSnapshot(beforeShift),
+      afterSchedule: nextShift ? workerSnapshot(nextShift) : null,
+      changedBy: actor,
+      reason,
+      createdAt: now,
+    });
+
+    await writeDb(db);
+    return {
+      shift: nextShift ? toPublicShift(nextShift) : null,
+      history: db.history.filter((entry) => entry.shiftDate === date),
+    };
   });
 
   sendJson(res, 200, result);
@@ -428,12 +501,7 @@ function normalizeWorkerPair(value, label) {
     throw new HttpError(400, `${label} 근무자는 정확히 2명 입력해야 합니다.`);
   }
 
-  const pair = value.map(normalizeWorkerName);
-  if (pair.some((name) => !name)) {
-    throw new HttpError(400, `${label} 근무자 이름을 모두 입력해주세요.`);
-  }
-
-  return pair;
+  return value.map(normalizeWorkerName);
 }
 
 function normalizeWorkerName(value) {
@@ -459,10 +527,6 @@ function assertValidAssignments(taxOfficeWorkers, districtOfficeWorkers) {
     ...(taxOfficeWorkers || []).map((name) => ({ name, location: "세무서" })),
     ...(districtOfficeWorkers || []).map((name) => ({ name, location: "구청 신고창구" })),
   ];
-
-  if (names.some((item) => !normalizeWorkerName(item.name))) {
-    errors.push("빈 근무자 이름은 저장할 수 없습니다.");
-  }
 
   const duplicateNames = findDuplicateNames(taxOfficeWorkers || [], districtOfficeWorkers || []);
   if (duplicateNames.length > 0) {

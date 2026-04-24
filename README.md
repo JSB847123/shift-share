@@ -26,9 +26,10 @@ npm start
 ## 데이터 저장
 
 - 근무표와 변경 이력은 `data/shifts.json`에 저장됩니다.
-- 같은 날짜의 세무서 2명, 구청 신고창구 2명만 저장됩니다.
-- 빈 이름과 같은 날짜 중복 배정은 저장되지 않습니다.
-- 저장, 교체, 맞바꾸기는 `revision`으로 동시 수정 충돌을 검사합니다.
+- 같은 날짜의 세무서 2칸, 구청 신고창구 2칸 구조로 저장됩니다.
+- 근무자 칸은 비워서 저장할 수 있습니다.
+- 같은 날짜 중복 배정은 저장되지 않습니다.
+- 저장과 되돌리기는 `revision`으로 동시 수정 충돌을 검사합니다.
 
 ## 카카오 디벨로퍼스 설정
 
@@ -45,3 +46,4 @@ npm start
 - `POST /api/shifts/YYYY-MM-DD`: 최초 등록 또는 수정
 - `PATCH /api/shifts/YYYY-MM-DD/replace`: 근무자 1명 교체
 - `PATCH /api/shifts/YYYY-MM-DD/swap`: 근무자 2명 맞바꾸기
+- `PATCH /api/shifts/YYYY-MM-DD/undo`: 직전 변경 되돌리기

@@ -1,19 +1,9 @@
-const LOCATION_LABELS = {
-  tax: "세무서",
-  district: "구청 신고창구",
-};
-
-const LOCATION_FIELDS = {
-  tax: "taxOfficeWorkers",
-  district: "districtOfficeWorkers",
-};
-
 const state = {
   date: getInitialDate(),
   month: "",
+  shifts: [],
   shift: null,
   history: [],
-  monthShifts: new Map(),
   config: {
     kakaoJsKey: "",
     appBaseUrl: "",
@@ -23,15 +13,18 @@ const state = {
 const els = {
   statusArea: document.querySelector("#statusArea"),
   refreshButton: document.querySelector("#refreshButton"),
-  todayButton: document.querySelector("#todayButton"),
+  kakaoShareButton: document.querySelector("#kakaoShareButton"),
   dateInput: document.querySelector("#dateInput"),
   monthInput: document.querySelector("#monthInput"),
-  calendarGrid: document.querySelector("#calendarGrid"),
-  detailTitle: document.querySelector("#detailTitle"),
-  shiftDetail: document.querySelector("#shiftDetail"),
-  kakaoShareButton: document.querySelector("#kakaoShareButton"),
-  formTitle: document.querySelector("#formTitle"),
-  shiftForm: document.querySelector("#shiftForm"),
+  clearMonthButton: document.querySelector("#clearMonthButton"),
+  openEditButton: document.querySelector("#openEditButton"),
+  listMeta: document.querySelector("#listMeta"),
+  shiftList: document.querySelector("#shiftList"),
+  selectedDateText: document.querySelector("#selectedDateText"),
+  historyList: document.querySelector("#historyList"),
+  editDialog: document.querySelector("#editDialog"),
+  editForm: document.querySelector("#editForm"),
+  editTitle: document.querySelector("#editTitle"),
   taxWorker1: document.querySelector("#taxWorker1"),
   taxWorker2: document.querySelector("#taxWorker2"),
   districtWorker1: document.querySelector("#districtWorker1"),
@@ -40,74 +33,69 @@ const els = {
   editPinInput: document.querySelector("#editPinInput"),
   reasonInput: document.querySelector("#reasonInput"),
   saveButton: document.querySelector("#saveButton"),
-  openReplaceButton: document.querySelector("#openReplaceButton"),
-  swapForm: document.querySelector("#swapForm"),
-  swapASelect: document.querySelector("#swapASelect"),
-  swapBSelect: document.querySelector("#swapBSelect"),
-  swapChangedByInput: document.querySelector("#swapChangedByInput"),
-  swapEditPinInput: document.querySelector("#swapEditPinInput"),
-  swapReasonInput: document.querySelector("#swapReasonInput"),
-  historyList: document.querySelector("#historyList"),
-  replaceDialog: document.querySelector("#replaceDialog"),
-  replaceForm: document.querySelector("#replaceForm"),
-  replacePositionSelect: document.querySelector("#replacePositionSelect"),
-  replaceWorkerInput: document.querySelector("#replaceWorkerInput"),
-  replaceChangedByInput: document.querySelector("#replaceChangedByInput"),
-  replaceEditPinInput: document.querySelector("#replaceEditPinInput"),
-  replaceReasonInput: document.querySelector("#replaceReasonInput"),
-  closeReplaceButton: document.querySelector("#closeReplaceButton"),
-  cancelReplaceButton: document.querySelector("#cancelReplaceButton"),
+  closeEditButton: document.querySelector("#closeEditButton"),
+  cancelEditButton: document.querySelector("#cancelEditButton"),
+  undoDialog: document.querySelector("#undoDialog"),
+  undoForm: document.querySelector("#undoForm"),
+  undoDateText: document.querySelector("#undoDateText"),
+  undoChangedByInput: document.querySelector("#undoChangedByInput"),
+  undoEditPinInput: document.querySelector("#undoEditPinInput"),
+  undoReasonInput: document.querySelector("#undoReasonInput"),
+  closeUndoButton: document.querySelector("#closeUndoButton"),
+  cancelUndoButton: document.querySelector("#cancelUndoButton"),
 };
 
 init();
 
 async function init() {
-  state.month = state.date.slice(0, 7);
   els.dateInput.value = state.date;
-  els.monthInput.value = state.month;
+  els.monthInput.value = "";
   restoreActorNames();
   bindEvents();
 
-  await Promise.all([loadConfig(), loadMonthShifts(), loadShift()]);
+  await Promise.all([loadConfig(), reloadAll()]);
   initKakao();
 }
 
 function bindEvents() {
-  els.refreshButton.addEventListener("click", () => reloadAll());
-  els.todayButton.addEventListener("click", () => setDate(todayString()));
+  els.refreshButton.addEventListener("click", reloadAll);
+  els.kakaoShareButton.addEventListener("click", shareToKakao);
+  els.openEditButton.addEventListener("click", () => openEditDialog(state.date));
+  els.clearMonthButton.addEventListener("click", async () => {
+    state.month = "";
+    els.monthInput.value = "";
+    await loadShifts();
+  });
 
-  els.dateInput.addEventListener("change", () => {
-    if (els.dateInput.value) {
-      setDate(els.dateInput.value);
-    }
+  els.dateInput.addEventListener("change", async () => {
+    if (!els.dateInput.value) return;
+    await selectDate(els.dateInput.value);
   });
 
   els.monthInput.addEventListener("change", async () => {
-    if (!els.monthInput.value) return;
     state.month = els.monthInput.value;
-    await loadMonthShifts();
+    await loadShifts();
   });
 
-  els.shiftForm.addEventListener("submit", saveSchedule);
-  els.openReplaceButton.addEventListener("click", openReplaceDialog);
-  els.replaceForm.addEventListener("submit", submitReplace);
-  els.closeReplaceButton.addEventListener("click", closeReplaceDialog);
-  els.cancelReplaceButton.addEventListener("click", closeReplaceDialog);
-  els.swapForm.addEventListener("submit", submitSwap);
-  els.kakaoShareButton.addEventListener("click", shareToKakao);
+  els.editForm.addEventListener("submit", saveSchedule);
+  els.closeEditButton.addEventListener("click", closeEditDialog);
+  els.cancelEditButton.addEventListener("click", closeEditDialog);
+
+  els.undoForm.addEventListener("submit", undoSchedule);
+  els.closeUndoButton.addEventListener("click", closeUndoDialog);
+  els.cancelUndoButton.addEventListener("click", closeUndoDialog);
 }
 
 async function reloadAll() {
-  await Promise.all([loadMonthShifts(), loadShift()]);
+  await Promise.all([loadShifts(), loadShift(state.date)]);
 }
 
-async function setDate(date) {
+async function selectDate(date) {
   state.date = date;
-  state.month = date.slice(0, 7);
   els.dateInput.value = date;
-  els.monthInput.value = state.month;
   window.history.replaceState(null, "", `/shifts/${date}`);
-  await reloadAll();
+  await loadShift(date);
+  renderShiftList();
 }
 
 async function loadConfig() {
@@ -118,28 +106,48 @@ async function loadConfig() {
   }
 }
 
-async function loadMonthShifts() {
+async function loadShifts() {
   try {
-    const data = await api(`/api/shifts?month=${encodeURIComponent(state.month)}`);
-    state.monthShifts = new Map((data.shifts || []).map((shift) => [shift.date, shift]));
-    renderCalendar();
+    const query = state.month ? `?month=${encodeURIComponent(state.month)}` : "";
+    const data = await api(`/api/shifts${query}`);
+    state.shifts = data.shifts || [];
+    renderShiftList();
   } catch (error) {
     setStatus(error.message || "근무표 목록 조회에 실패했습니다.", "error");
   }
 }
 
-async function loadShift() {
+async function loadShift(date) {
   try {
-    const data = await api(`/api/shifts/${encodeURIComponent(state.date)}`);
+    const data = await api(`/api/shifts/${encodeURIComponent(date)}`);
     state.shift = data.shift;
-    state.history = data.history || [];
-    renderShift();
-    renderForm();
-    renderPositionControls();
+    state.history = sortHistory(data.history || []);
     renderHistory();
   } catch (error) {
     setStatus(error.message || "근무표 조회에 실패했습니다.", "error");
   }
+}
+
+function openEditDialog(date) {
+  state.date = date;
+  els.dateInput.value = date;
+  const shift = getShiftFromList(date) || (state.shift?.date === date ? state.shift : null);
+  state.shift = shift;
+
+  els.editTitle.textContent = `${formatKoreanDate(date)} 근무자 변경`;
+  els.saveButton.textContent = shift ? "저장" : "등록";
+  els.taxWorker1.value = shift?.taxOfficeWorkers?.[0] || "";
+  els.taxWorker2.value = shift?.taxOfficeWorkers?.[1] || "";
+  els.districtWorker1.value = shift?.districtOfficeWorkers?.[0] || "";
+  els.districtWorker2.value = shift?.districtOfficeWorkers?.[1] || "";
+  els.reasonInput.value = "";
+  els.changedByInput.value = els.changedByInput.value || getStoredActor();
+
+  openDialog(els.editDialog);
+}
+
+function closeEditDialog() {
+  els.editDialog.close();
 }
 
 async function saveSchedule(event) {
@@ -167,299 +175,148 @@ async function saveSchedule(event) {
     });
     state.shift = data.shift;
     state.history = sortHistory(data.history || []);
-    els.reasonInput.value = "";
+    closeEditDialog();
     setStatus("근무표를 저장했습니다.", "success");
-    await loadMonthShifts();
-    renderShift();
-    renderForm();
-    renderPositionControls();
+    await loadShifts();
     renderHistory();
   } catch (error) {
     handleApiError(error, "근무표 저장에 실패했습니다.");
   }
 }
 
-function openReplaceDialog() {
+async function openUndoDialog(date) {
+  await selectDate(date);
   if (!state.shift) {
-    setStatus("해당 날짜에 등록된 근무표가 없습니다.", "warning");
+    setStatus("되돌릴 근무표가 없습니다.", "warning");
     return;
   }
 
-  renderPositionControls();
-  els.replaceWorkerInput.value = "";
-  els.replaceReasonInput.value = "";
-  els.replaceChangedByInput.value = els.changedByInput.value || getStoredActor();
-  if (typeof els.replaceDialog.showModal === "function") {
-    els.replaceDialog.showModal();
-  } else {
-    els.replaceDialog.setAttribute("open", "open");
-  }
+  els.undoDateText.textContent = `${formatKoreanDate(date)} 근무표를 직전 저장 상태로 되돌립니다.`;
+  els.undoChangedByInput.value = els.undoChangedByInput.value || getStoredActor();
+  els.undoReasonInput.value = "직전 변경 되돌리기";
+  openDialog(els.undoDialog);
 }
 
-function closeReplaceDialog() {
-  els.replaceDialog.close();
+function closeUndoDialog() {
+  els.undoDialog.close();
 }
 
-async function submitReplace(event) {
+async function undoSchedule(event) {
   event.preventDefault();
   if (!state.shift) return;
 
   const payload = {
-    position: parsePositionValue(els.replacePositionSelect.value),
-    newWorker: els.replaceWorkerInput.value,
-    changedBy: els.replaceChangedByInput.value,
-    editPin: els.replaceEditPinInput.value,
-    reason: els.replaceReasonInput.value,
+    changedBy: els.undoChangedByInput.value,
+    editPin: els.undoEditPinInput.value,
+    reason: els.undoReasonInput.value,
     revision: state.shift.revision,
   };
 
-  if (!payload.newWorker.trim()) {
-    setStatus("변경할 근무자 이름을 입력해주세요.", "error");
-    return;
-  }
-
   try {
     rememberActor(payload.changedBy);
-    const data = await api(`/api/shifts/${encodeURIComponent(state.date)}/replace`, {
+    const data = await api(`/api/shifts/${encodeURIComponent(state.date)}/undo`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });
     state.shift = data.shift;
     state.history = sortHistory(data.history || []);
-    closeReplaceDialog();
-    setStatus("근무자를 교체했습니다.", "success");
-    await loadMonthShifts();
-    renderShift();
-    renderForm();
-    renderPositionControls();
+    closeUndoDialog();
+    setStatus("직전 변경을 되돌렸습니다.", "success");
+    await loadShifts();
     renderHistory();
   } catch (error) {
-    handleApiError(error, "근무자 교체에 실패했습니다.");
+    handleApiError(error, "되돌리기에 실패했습니다.");
   }
 }
 
-async function submitSwap(event) {
-  event.preventDefault();
-  if (!state.shift) {
-    setStatus("해당 날짜에 등록된 근무표가 없습니다.", "warning");
+function renderShiftList() {
+  els.listMeta.textContent = state.month ? `${state.month} 표시 중` : "전체 표시 중";
+
+  if (!state.shifts.length) {
+    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 날짜를 선택하고 근무자 변경을 눌러 등록하세요.</div>`;
     return;
   }
 
-  const payload = {
-    a: parsePositionValue(els.swapASelect.value),
-    b: parsePositionValue(els.swapBSelect.value),
-    changedBy: els.swapChangedByInput.value,
-    editPin: els.swapEditPinInput.value,
-    reason: els.swapReasonInput.value,
-    revision: state.shift.revision,
-  };
+  els.shiftList.innerHTML = `
+    <div class="table-wrap">
+      <table class="shift-table">
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>세무서</th>
+            <th>구청 신고창구</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.shifts.map(renderShiftRow).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 
-  if (els.swapASelect.value === els.swapBSelect.value) {
-    setStatus("서로 다른 근무자 두 명을 선택해주세요.", "error");
-    return;
-  }
+  els.shiftList.querySelectorAll("[data-select-date]").forEach((button) => {
+    button.addEventListener("click", () => selectDate(button.dataset.selectDate));
+  });
 
-  try {
-    rememberActor(payload.changedBy);
-    const data = await api(`/api/shifts/${encodeURIComponent(state.date)}/swap`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
+  els.shiftList.querySelectorAll("[data-edit-date]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await selectDate(button.dataset.editDate);
+      openEditDialog(button.dataset.editDate);
     });
-    state.shift = data.shift;
-    state.history = sortHistory(data.history || []);
-    els.swapReasonInput.value = "";
-    setStatus("근무자를 맞바꿨습니다.", "success");
-    await loadMonthShifts();
-    renderShift();
-    renderForm();
-    renderPositionControls();
-    renderHistory();
-  } catch (error) {
-    handleApiError(error, "근무자 맞바꾸기에 실패했습니다.");
-  }
+  });
+
+  els.shiftList.querySelectorAll("[data-undo-date]").forEach((button) => {
+    button.addEventListener("click", () => openUndoDialog(button.dataset.undoDate));
+  });
 }
 
-function shareToKakao() {
-  try {
-    if (!state.config.kakaoJsKey) {
-      setStatus("카카오 JavaScript 키가 설정되지 않았습니다.", "error");
-      return;
-    }
-
-    initKakao();
-    if (!window.Kakao || !Kakao.isInitialized()) {
-      setStatus("카카오 SDK가 초기화되지 않았습니다.", "error");
-      return;
-    }
-
-    const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
-    const text = buildShareText(shareUrl);
-
-    Kakao.Share.sendDefault({
-      objectType: "text",
-      text,
-      link: {
-        mobileWebUrl: shareUrl,
-        webUrl: shareUrl,
-      },
-      buttonTitle: "근무표 열기",
-    });
-  } catch (error) {
-    setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
-  }
-}
-
-function initKakao() {
-  if (!state.config.kakaoJsKey) {
-    return;
-  }
-
-  if (!window.Kakao) {
-    setStatus("카카오 SDK를 불러오지 못했습니다.", "error");
-    return;
-  }
-
-  if (!Kakao.isInitialized()) {
-    Kakao.init(state.config.kakaoJsKey);
-  }
-}
-
-function buildShareText() {
-  const formatted = formatKoreanDate(state.date);
-
-  if (!state.shift) {
-    return `[근무표 안내]\n${formatted}\n\n해당 날짜에 등록된 근무표가 없습니다.\n\n근무 변경/확인:\n앱 링크`;
-  }
-
-  return [
-    "[근무표 안내]",
-    formatted,
-    "",
-    `세무서: ${state.shift.taxOfficeWorkers.join(", ")}`,
-    `구청 신고창구: ${state.shift.districtOfficeWorkers.join(", ")}`,
-    "",
-    "근무 변경/확인:",
-    "앱 링크",
-  ].join("\n");
-}
-
-function renderCalendar() {
-  els.calendarGrid.textContent = "";
-  const [year, month] = state.month.split("-").map(Number);
-  const first = new Date(year, month - 1, 1);
-  const lastDay = new Date(year, month, 0).getDate();
-
-  for (let index = 0; index < first.getDay(); index += 1) {
-    const empty = document.createElement("div");
-    empty.className = "calendar-day empty-cell";
-    els.calendarGrid.append(empty);
-  }
-
-  for (let day = 1; day <= lastDay; day += 1) {
-    const date = `${state.month}-${String(day).padStart(2, "0")}`;
-    const shift = state.monthShifts.get(date);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = [
-      "calendar-day",
-      date === state.date ? "is-selected" : "",
-      shift ? "has-shift" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-    button.innerHTML = `
-      <span class="day-number">${day}</span>
-      <span class="day-summary">${shift ? escapeHtml(getCompactWorkers(shift)) : "미등록"}</span>
-    `;
-    button.addEventListener("click", () => setDate(date));
-    els.calendarGrid.append(button);
-  }
-}
-
-function renderShift() {
-  els.detailTitle.textContent = "근무표";
-
-  if (!state.shift) {
-    els.shiftDetail.innerHTML = `
-      <div class="schedule-title">
-        <h3>${escapeHtml(formatKoreanDate(state.date))} 근무표</h3>
-      </div>
-      <div class="empty-state">해당 날짜에 등록된 근무표가 없습니다.</div>
-    `;
-    return;
-  }
-
-  const warnings = state.shift.warnings || [];
-  const warningHtml = warnings.length
-    ? `<div class="warning-box">${warnings.map(escapeHtml).join("<br>")}</div>`
+function renderShiftRow(shift) {
+  const selected = shift.date === state.date ? "is-selected" : "";
+  const warnings = shift.warnings?.length
+    ? `<p class="row-warning">${shift.warnings.map(escapeHtml).join("<br>")}</p>`
     : "";
 
-  els.shiftDetail.innerHTML = `
-    <div class="schedule-title">
-      <h3>${escapeHtml(formatKoreanDate(state.shift.date))} 근무표</h3>
-      <p class="meta">최종 수정: ${escapeHtml(formatDateTime(state.shift.updatedAt))} · ${escapeHtml(
-        state.shift.updatedBy
-      )} · revision ${state.shift.revision}</p>
-    </div>
-    <div class="worker-groups">
-      ${renderWorkerGroup("세무서", state.shift.taxOfficeWorkers)}
-      ${renderWorkerGroup("구청 신고창구", state.shift.districtOfficeWorkers)}
-    </div>
-    ${warningHtml}
-  `;
-}
-
-function renderWorkerGroup(title, workers) {
   return `
-    <div class="worker-group">
-      <h4>${escapeHtml(title)}</h4>
-      <ul class="worker-list">
-        ${workers.map((worker) => `<li>${escapeHtml(worker)}</li>`).join("")}
-      </ul>
-    </div>
+    <tr class="${selected}">
+      <td>
+        <button class="date-button" type="button" data-select-date="${escapeHtml(shift.date)}">
+          ${escapeHtml(formatKoreanDate(shift.date))}
+        </button>
+        <p class="meta">수정 ${escapeHtml(formatDateTime(shift.updatedAt))}</p>
+        ${warnings}
+      </td>
+      <td>${renderWorkerNames(shift.taxOfficeWorkers)}</td>
+      <td>${renderWorkerNames(shift.districtOfficeWorkers)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="secondary-button small" type="button" data-edit-date="${escapeHtml(shift.date)}">근무자 변경</button>
+          <button class="danger-ghost-button small" type="button" data-undo-date="${escapeHtml(shift.date)}">되돌리기</button>
+        </div>
+      </td>
+    </tr>
   `;
 }
 
-function renderForm() {
-  els.formTitle.textContent = state.shift ? "근무표 수정" : "근무표 등록";
-  els.saveButton.textContent = state.shift ? "수정 저장" : "최초 등록";
-
-  els.taxWorker1.value = state.shift?.taxOfficeWorkers?.[0] || "";
-  els.taxWorker2.value = state.shift?.taxOfficeWorkers?.[1] || "";
-  els.districtWorker1.value = state.shift?.districtOfficeWorkers?.[0] || "";
-  els.districtWorker2.value = state.shift?.districtOfficeWorkers?.[1] || "";
-
-  const actor = getStoredActor();
-  if (!els.changedByInput.value) els.changedByInput.value = actor;
-  if (!els.swapChangedByInput.value) els.swapChangedByInput.value = actor;
-  if (!els.replaceChangedByInput.value) els.replaceChangedByInput.value = actor;
-}
-
-function renderPositionControls() {
-  const options = getPositionOptions();
-  fillSelect(els.replacePositionSelect, options);
-  fillSelect(els.swapASelect, options);
-  fillSelect(els.swapBSelect, options);
-
-  if (options.length > 1) {
-    els.swapBSelect.selectedIndex = 1;
-  }
-
-  const disabled = !state.shift;
-  els.openReplaceButton.disabled = disabled;
-  els.swapASelect.disabled = disabled;
-  els.swapBSelect.disabled = disabled;
+function renderWorkerNames(workers) {
+  return `
+    <div class="worker-stack">
+      ${workers.map((worker) => `<span>${escapeHtml(worker || "비어 있음")}</span>`).join("")}
+    </div>
+  `;
 }
 
 function renderHistory() {
+  els.selectedDateText.textContent = formatKoreanDate(state.date);
+
   if (!state.history.length) {
-    els.historyList.innerHTML = `<div class="empty-state">변경 이력이 없습니다.</div>`;
+    els.historyList.innerHTML = `<div class="empty-state compact">선택한 날짜의 변경 이력이 없습니다.</div>`;
     return;
   }
 
   els.historyList.innerHTML = `
     <div class="history-list">
-      ${sortHistory(state.history).map(renderHistoryItem).join("")}
+      ${state.history.map(renderHistoryItem).join("")}
     </div>
   `;
 }
@@ -470,6 +327,7 @@ function renderHistoryItem(entry) {
     update: "수정",
     replace: "교체",
     swap: "맞바꾸기",
+    undo: "되돌리기",
   }[entry.action] || "변경";
 
   return `
@@ -488,56 +346,13 @@ function renderHistoryItem(entry) {
   `;
 }
 
-function getPositionOptions() {
-  if (!state.shift) return [];
-
-  return [
-    makePositionOption("tax", 0),
-    makePositionOption("tax", 1),
-    makePositionOption("district", 0),
-    makePositionOption("district", 1),
-  ];
-}
-
-function makePositionOption(location, index) {
-  const field = LOCATION_FIELDS[location];
-  const worker = state.shift[field][index];
-  return {
-    value: `${location}:${index}`,
-    label: `${LOCATION_LABELS[location]} ${index + 1} - ${worker}`,
-  };
-}
-
-function fillSelect(select, options) {
-  select.textContent = "";
-  if (!options.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "미등록";
-    select.append(option);
-    return;
-  }
-
-  for (const item of options) {
-    const option = document.createElement("option");
-    option.value = item.value;
-    option.textContent = item.label;
-    select.append(option);
-  }
-}
-
 function validateWorkerPayload(taxOfficeWorkers, districtOfficeWorkers) {
-  const allNames = [...taxOfficeWorkers, ...districtOfficeWorkers].map((name) => name.trim());
   if (taxOfficeWorkers.length !== 2 || districtOfficeWorkers.length !== 2) {
-    return "근무지는 각각 정확히 2명이어야 합니다.";
-  }
-
-  if (allNames.some((name) => !name)) {
-    return "빈 근무자 이름은 저장할 수 없습니다.";
+    return "근무지는 각각 2칸이어야 합니다.";
   }
 
   const seen = new Map();
-  for (const name of allNames) {
+  for (const name of [...taxOfficeWorkers, ...districtOfficeWorkers].map((value) => value.trim()).filter(Boolean)) {
     const key = name.toLocaleLowerCase("ko-KR");
     if (seen.has(key)) {
       return `같은 사람이 중복 배정되어 있습니다: ${name}`;
@@ -546,6 +361,67 @@ function validateWorkerPayload(taxOfficeWorkers, districtOfficeWorkers) {
   }
 
   return "";
+}
+
+function shareToKakao() {
+  try {
+    if (!state.config.kakaoJsKey) {
+      setStatus("카카오 JavaScript 키가 설정되지 않았습니다.", "error");
+      return;
+    }
+
+    initKakao();
+    if (!window.Kakao || !Kakao.isInitialized()) {
+      setStatus("카카오 SDK가 초기화되지 않았습니다.", "error");
+      return;
+    }
+
+    const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
+    const text = buildShareText();
+
+    Kakao.Share.sendDefault({
+      objectType: "text",
+      text,
+      link: {
+        mobileWebUrl: shareUrl,
+        webUrl: shareUrl,
+      },
+      buttonTitle: "근무표 열기",
+    });
+  } catch (error) {
+    setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
+  }
+}
+
+function initKakao() {
+  if (!state.config.kakaoJsKey) return;
+  if (!window.Kakao) {
+    setStatus("카카오 SDK를 불러오지 못했습니다.", "error");
+    return;
+  }
+  if (!Kakao.isInitialized()) {
+    Kakao.init(state.config.kakaoJsKey);
+  }
+}
+
+function buildShareText() {
+  const formatted = formatKoreanDate(state.date);
+  const shift = state.shift || getShiftFromList(state.date);
+
+  if (!shift) {
+    return `[근무표 안내]\n${formatted}\n\n해당 날짜에 등록된 근무표가 없습니다.\n\n근무 변경/확인:\n앱 링크`;
+  }
+
+  return [
+    "[근무표 안내]",
+    formatted,
+    "",
+    `세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
+    `구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
+    "",
+    "근무 변경/확인:",
+    "앱 링크",
+  ].join("\n");
 }
 
 async function api(path, options = {}) {
@@ -564,7 +440,6 @@ async function api(path, options = {}) {
     error.details = data.details;
     throw error;
   }
-
   return data;
 }
 
@@ -572,7 +447,7 @@ function handleApiError(error, fallback) {
   const message = error.message || fallback;
   setStatus(message, error.status === 409 ? "warning" : "error");
   if (error.status === 409) {
-    loadShift();
+    reloadAll();
   }
 }
 
@@ -581,8 +456,15 @@ function setStatus(message, type = "info") {
     els.statusArea.textContent = "";
     return;
   }
-
   els.statusArea.innerHTML = `<div class="status-message ${type}">${escapeHtml(message)}</div>`;
+}
+
+function openDialog(dialog) {
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+  } else {
+    dialog.setAttribute("open", "open");
+  }
 }
 
 function rememberActor(value) {
@@ -590,42 +472,37 @@ function rememberActor(value) {
   if (!actor) return;
   localStorage.setItem("shiftScheduleActor", actor);
   els.changedByInput.value = actor;
-  els.swapChangedByInput.value = actor;
-  els.replaceChangedByInput.value = actor;
+  els.undoChangedByInput.value = actor;
 }
 
 function restoreActorNames() {
   const actor = getStoredActor();
   els.changedByInput.value = actor;
-  els.swapChangedByInput.value = actor;
-  els.replaceChangedByInput.value = actor;
+  els.undoChangedByInput.value = actor;
 }
 
 function getStoredActor() {
   return localStorage.getItem("shiftScheduleActor") || "";
 }
 
-function getCompactWorkers(shift) {
-  return `${shift.taxOfficeWorkers.join(", ")} / ${shift.districtOfficeWorkers.join(", ")}`;
+function getShiftFromList(date) {
+  return state.shifts.find((shift) => shift.date === date) || null;
+}
+
+function formatWorkerLine(workers) {
+  const names = workers.filter(Boolean);
+  return names.length ? names.join(", ") : "비어 있음";
 }
 
 function formatWorkersForHistory(value) {
   if (!value) return "없음";
-  if (Array.isArray(value)) return value.join(", ");
+  if (Array.isArray(value)) return value.map((item) => item || "비어 있음").join(", ");
   if (typeof value === "object") {
-    const tax = value.taxOfficeWorkers ? `세무서 ${value.taxOfficeWorkers.join(", ")}` : "";
-    const district = value.districtOfficeWorkers ? `구청 신고창구 ${value.districtOfficeWorkers.join(", ")}` : "";
+    const tax = value.taxOfficeWorkers ? `세무서 ${formatWorkerLine(value.taxOfficeWorkers)}` : "";
+    const district = value.districtOfficeWorkers ? `구청 신고창구 ${formatWorkerLine(value.districtOfficeWorkers)}` : "";
     return [tax, district].filter(Boolean).join(" / ");
   }
   return String(value);
-}
-
-function parsePositionValue(value) {
-  const [location, rawIndex] = value.split(":");
-  return {
-    location,
-    index: Number(rawIndex),
-  };
 }
 
 function sortHistory(history) {

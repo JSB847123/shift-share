@@ -2,13 +2,14 @@
   --bg: #f5f7fb;
   --panel: #ffffff;
   --text: #172033;
-  --muted: #64748b;
+  --muted: #667085;
   --line: #d9e1ec;
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
   --accent: #0f766e;
   --warning: #b45309;
   --danger: #b91c1c;
+  --danger-bg: #fee2e2;
   --kakao: #fee500;
   --shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
 }
@@ -29,8 +30,7 @@ body {
 }
 
 button,
-input,
-select {
+input {
   font: inherit;
 }
 
@@ -40,36 +40,49 @@ button {
 }
 
 button:disabled,
-input:disabled,
-select:disabled {
+input:disabled {
   cursor: not-allowed;
   opacity: 0.56;
 }
 
 .app-shell {
-  width: min(1440px, 100%);
+  width: min(1280px, 100%);
   margin: 0 auto;
   padding: 24px;
 }
 
 .app-header,
+.header-actions,
 .panel-heading,
-.button-row {
+.button-row,
+.dialog-heading,
+.row-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+}
+
+.app-header,
+.panel-heading,
+.dialog-heading {
+  justify-content: space-between;
 }
 
 .app-header {
   margin-bottom: 16px;
 }
 
+.header-actions,
+.button-row,
+.row-actions {
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--accent);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 h1,
@@ -79,7 +92,7 @@ p {
 }
 
 h1 {
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(28px, 4vw, 42px);
   line-height: 1.08;
 }
 
@@ -90,7 +103,7 @@ h2 {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.35fr) minmax(360px, 1.1fr);
+  grid-template-columns: minmax(280px, 0.8fr) minmax(560px, 1.6fr);
   gap: 16px;
   align-items: start;
 }
@@ -103,22 +116,18 @@ h2 {
   padding: 18px;
 }
 
-.detail-panel,
+.controls-panel,
 .history-panel {
-  grid-column: span 1;
-}
-
-.history-panel {
-  grid-column: 2 / 4;
-}
-
-.stacked-form,
-.calendar-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
+.history-panel {
+  grid-column: 1 / -1;
+}
+
+.controls-grid,
 .input-grid {
   display: grid;
   gap: 12px;
@@ -138,11 +147,10 @@ h2 {
 .field span {
   color: var(--muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-input,
-select {
+input {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -153,7 +161,6 @@ select {
 }
 
 input:focus,
-select:focus,
 button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.22);
   outline-offset: 2px;
@@ -161,15 +168,13 @@ button:focus-visible {
 
 .primary-button,
 .secondary-button,
-.ghost-button,
 .kakao-button,
+.danger-button,
+.danger-ghost-button,
 .icon-button {
   min-height: 40px;
   border-radius: 6px;
-  font-weight: 700;
-  transition:
-    transform 0.12s ease,
-    background 0.12s ease;
+  font-weight: 800;
 }
 
 .primary-button {
@@ -182,16 +187,10 @@ button:focus-visible {
   background: var(--primary-dark);
 }
 
-.secondary-button,
-.ghost-button {
+.secondary-button {
   background: #edf2f7;
   color: #243044;
   padding: 0 14px;
-}
-
-.ghost-button {
-  background: transparent;
-  color: var(--primary);
 }
 
 .kakao-button {
@@ -200,17 +199,30 @@ button:focus-visible {
   padding: 0 14px;
 }
 
+.danger-button {
+  background: var(--danger);
+  color: #fff;
+  padding: 0 16px;
+}
+
+.danger-ghost-button {
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 0 14px;
+}
+
+.small {
+  min-height: 34px;
+  padding-inline: 10px;
+  font-size: 13px;
+}
+
 .icon-button {
   width: 38px;
   background: #edf2f7;
   color: #1f2933;
   font-size: 24px;
   line-height: 1;
-}
-
-.button-row {
-  justify-content: flex-start;
-  flex-wrap: wrap;
 }
 
 .button-row.end {
@@ -225,7 +237,7 @@ button:focus-visible {
 .status-message {
   border-radius: 8px;
   padding: 11px 14px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .status-message.info {
@@ -239,75 +251,14 @@ button:focus-visible {
 }
 
 .status-message.error {
-  background: #fee2e2;
+  background: var(--danger-bg);
   color: var(--danger);
 }
 
 .status-message.warning,
-.warning-box {
+.row-warning {
   background: #fef3c7;
   color: var(--warning);
-}
-
-.weekday-row,
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.weekday-row span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.calendar-day {
-  min-height: 72px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--text);
-  padding: 8px;
-  text-align: left;
-}
-
-.calendar-day.is-selected {
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.18);
-}
-
-.calendar-day.has-shift {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-}
-
-.calendar-day.empty-cell {
-  visibility: hidden;
-}
-
-.day-number {
-  display: block;
-  font-weight: 800;
-}
-
-.day-summary {
-  display: block;
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-  overflow: hidden;
-}
-
-.schedule-title {
-  margin-bottom: 14px;
-}
-
-.schedule-title h3 {
-  margin: 0 0 6px;
-  font-size: 24px;
 }
 
 .meta {
@@ -315,46 +266,78 @@ button:focus-visible {
   font-size: 13px;
 }
 
-.worker-groups {
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.shift-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.shift-table th,
+.shift-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 13px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.shift-table th {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.shift-table tr.is-selected td {
+  background: #eff6ff;
+}
+
+.date-button {
+  background: transparent;
+  color: var(--primary);
+  font-weight: 900;
+  padding: 0;
+  text-align: left;
+}
+
+.worker-stack {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
+  gap: 6px;
 }
 
-.worker-group {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
+.worker-stack span {
+  display: block;
+  min-height: 24px;
+  color: #243044;
 }
 
-.worker-group h4 {
-  margin: 0 0 10px;
-  font-size: 16px;
-}
-
-.worker-list {
-  margin: 0;
-  padding-left: 20px;
-  line-height: 1.8;
+.row-warning {
+  width: fit-content;
+  border-radius: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .empty-state {
-  min-height: 140px;
+  min-height: 120px;
   display: grid;
   place-items: center;
   border: 1px dashed var(--line);
   border-radius: 8px;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 800;
+  padding: 18px;
   text-align: center;
 }
 
-.warning-box {
-  border-radius: 8px;
-  margin-top: 14px;
-  padding: 10px 12px;
-  font-weight: 700;
+.empty-state.compact {
+  min-height: 86px;
 }
 
 .history-list {
@@ -390,31 +373,37 @@ button:focus-visible {
   line-height: 1.55;
 }
 
-.replace-dialog {
-  width: min(520px, calc(100% - 32px));
+.stacked-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.edit-dialog {
+  width: min(560px, calc(100% - 32px));
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 18px;
 }
 
-.replace-dialog::backdrop {
+.edit-dialog::backdrop {
   background: rgba(15, 23, 42, 0.48);
 }
 
-@media (max-width: 1120px) {
-  .workspace {
-    grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
-  }
+.dialog-copy {
+  color: #334155;
+  line-height: 1.6;
+}
 
-  .form-panel,
-  .swap-panel,
-  .history-panel {
-    grid-column: 1 / -1;
+@media (max-width: 920px) {
+  .workspace,
+  .two-columns {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 680px) {
   .app-shell {
     padding: 16px;
   }
@@ -425,27 +414,19 @@ button:focus-visible {
     flex-direction: column;
   }
 
-  .workspace,
-  .worker-groups,
-  .two-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .calendar-day {
-    min-height: 62px;
-    padding: 6px;
-  }
-
-  .day-summary {
-    display: none;
-  }
-
+  .header-actions,
   .button-row {
     align-items: stretch;
     flex-direction: column;
+    width: 100%;
   }
 
+  .header-actions button,
   .button-row button {
     width: 100%;
+  }
+
+  .shift-table {
+    min-width: 620px;
   }
 }
