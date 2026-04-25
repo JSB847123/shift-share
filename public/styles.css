@@ -4,6 +4,21 @@
   --text: #172033;
   --muted: #667085;
   --line: #d9e1ec;
+  --input-bg: #ffffff;
+  --secondary-bg: #edf2f7;
+  --secondary-text: #243044;
+  --download-bg: #ecfdf5;
+  --download-border: #a7f3d0;
+  --download-text: #0f766e;
+  --info-bg: #e0f2fe;
+  --info-text: #075985;
+  --success-bg: #dcfce7;
+  --success-text: #166534;
+  --warning-bg: #fef3c7;
+  --selected-bg: #eff6ff;
+  --worker-text: #243044;
+  --detail-text: #334155;
+  --table-heading: #475467;
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
   --accent: #0f766e;
@@ -12,6 +27,36 @@
   --danger-bg: #fee2e2;
   --kakao: #fee500;
   --shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="dark"] {
+  --bg: #101214;
+  --panel: #181b20;
+  --text: #f1f5f9;
+  --muted: #a8b3c4;
+  --line: #2b313b;
+  --input-bg: #111419;
+  --secondary-bg: #242a33;
+  --secondary-text: #eef2f7;
+  --download-bg: #10241f;
+  --download-border: #1f6b5b;
+  --download-text: #7dd3c7;
+  --info-bg: #102339;
+  --info-text: #9bd4ff;
+  --success-bg: #10291c;
+  --success-text: #9be7b0;
+  --warning-bg: #33240d;
+  --selected-bg: #17243a;
+  --worker-text: #e4e9f0;
+  --detail-text: #cbd5e1;
+  --table-heading: #b8c2d0;
+  --primary: #6ea8ff;
+  --primary-dark: #9ac2ff;
+  --accent: #80d8cf;
+  --warning: #f5c56b;
+  --danger: #ff9b9b;
+  --danger-bg: #3b171b;
+  --shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
 }
 
 * {
@@ -186,7 +231,7 @@ input {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text);
   padding: 9px 11px;
 }
@@ -219,8 +264,8 @@ button:focus-visible {
 }
 
 .secondary-button {
-  background: #edf2f7;
-  color: #243044;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
   padding: 0 14px;
 }
 
@@ -230,30 +275,30 @@ button:focus-visible {
   min-height: 40px;
   border: 0;
   border-radius: 6px;
-  background: #ecfdf5;
-  color: #0f766e;
+  background: var(--download-bg);
+  color: var(--download-text);
   font-weight: 800;
   padding: 0 14px;
 }
 
 .download-help {
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--download-border);
   border-radius: 8px;
-  background: #ecfdf5;
+  background: var(--download-bg);
   padding: 10px;
 }
 
 .download-help p {
-  color: #0f766e;
+  color: var(--download-text);
   font-weight: 800;
 }
 
 .file-path {
   margin-top: 8px;
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--download-border);
   border-radius: 6px;
-  background: #ffffff;
-  color: #172033;
+  background: var(--input-bg);
+  color: var(--text);
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
   font-weight: 700;
@@ -315,8 +360,8 @@ button:focus-visible {
 
 .icon-button {
   width: 38px;
-  background: #edf2f7;
-  color: #1f2933;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
   font-size: 24px;
   line-height: 1;
 }
@@ -337,13 +382,13 @@ button:focus-visible {
 }
 
 .status-message.info {
-  background: #e0f2fe;
-  color: #075985;
+  background: var(--info-bg);
+  color: var(--info-text);
 }
 
 .status-message.success {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
 .status-message.error {
@@ -353,7 +398,7 @@ button:focus-visible {
 
 .status-message.warning,
 .row-warning {
-  background: #fef3c7;
+  background: var(--warning-bg);
   color: var(--warning);
 }
 
@@ -421,14 +466,14 @@ button:focus-visible {
 }
 
 .shift-table th {
-  color: #475467;
+  color: var(--table-heading);
   font-size: 13px;
   font-weight: 900;
   white-space: nowrap;
 }
 
 .shift-table tr.is-selected td {
-  background: #eff6ff;
+  background: var(--selected-bg);
 }
 
 .date-button {
@@ -447,7 +492,7 @@ button:focus-visible {
 .worker-stack span {
   display: block;
   min-height: 24px;
-  color: #243044;
+  color: var(--worker-text);
 }
 
 .row-warning {
@@ -512,7 +557,7 @@ button:focus-visible {
 }
 
 .history-detail {
-  color: #334155;
+  color: var(--detail-text);
   line-height: 1.55;
 }
 
@@ -535,21 +580,50 @@ button:focus-visible {
 }
 
 .dialog-copy {
-  color: #334155;
+  color: var(--detail-text);
   line-height: 1.6;
+}
+
+#periodCalendar {
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .period-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  min-width: 560px;
+}
+
+.period-weekday {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+  padding: 4px 0 6px;
+}
+
+.period-weekday:first-child {
+  color: var(--danger);
+}
+
+.period-weekday:nth-child(7) {
+  color: var(--primary);
+}
+
+.period-blank {
+  min-height: 98px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 70%, var(--bg));
 }
 
 .period-day {
   min-height: 98px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text);
   display: flex;
   flex-direction: column;
@@ -561,7 +635,7 @@ button:focus-visible {
 .period-day:hover,
 .period-day.is-selected {
   border-color: var(--primary);
-  background: #eff6ff;
+  background: var(--selected-bg);
 }
 
 .period-date {
@@ -571,7 +645,7 @@ button:focus-visible {
 }
 
 .period-workers {
-  color: #334155;
+  color: var(--detail-text);
   font-size: 12px;
   font-weight: 800;
   line-height: 1.45;
@@ -595,9 +669,6 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .period-calendar-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 680px) {
@@ -627,7 +698,4 @@ button:focus-visible {
     min-width: 540px;
   }
 
-  .period-calendar-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }

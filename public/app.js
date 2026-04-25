@@ -2,6 +2,7 @@ const state = {
   date: getInitialDate(),
   today: todayString(),
   month: "",
+  theme: getInitialTheme(),
   shifts: [],
   shift: null,
   todayShift: null,
@@ -14,9 +15,11 @@ const state = {
 };
 
 const periodRange = getPeriodRange(state.today);
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const els = {
   statusArea: document.querySelector("#statusArea"),
+  themeToggleButton: document.querySelector("#themeToggleButton"),
   refreshButton: document.querySelector("#refreshButton"),
   kakaoShareButton: document.querySelector("#kakaoShareButton"),
   todayDateText: document.querySelector("#todayDateText"),
@@ -66,6 +69,7 @@ const els = {
 init();
 
 async function init() {
+  applyTheme(state.theme);
   els.dateInput.value = state.date;
   els.monthInput.value = "";
   restoreActorNames();
@@ -76,6 +80,7 @@ async function init() {
 }
 
 function bindEvents() {
+  els.themeToggleButton.addEventListener("click", toggleTheme);
   els.refreshButton.addEventListener("click", reloadAll);
   els.kakaoShareButton.addEventListener("click", shareToKakao);
   els.templateDownloadButton.addEventListener("click", downloadTemplate);
@@ -481,9 +486,14 @@ function renderHistory() {
 function renderPeriodCalendar() {
   const byDate = new Map(state.calendarShifts.map((shift) => [shift.date, shift]));
   const days = enumerateDates(periodRange.start, periodRange.end);
+  const leadingBlankCount = parseLocalDate(periodRange.start).getDay();
+  const weekdayHeaders = WEEKDAY_LABELS.map(renderWeekdayHeader).join("");
+  const leadingBlanks = Array.from({ length: leadingBlankCount }, (_, index) => renderPeriodBlank(index)).join("");
 
   els.periodCalendar.innerHTML = `
-    <div class="period-calendar-grid">
+    <div class="period-calendar-grid" role="grid" aria-label="5월 1일부터 6월 1일까지 근무 달력">
+      ${weekdayHeaders}
+      ${leadingBlanks}
       ${days.map((date) => renderPeriodDay(date, byDate.get(date))).join("")}
     </div>
   `;
@@ -491,6 +501,14 @@ function renderPeriodCalendar() {
   els.periodCalendar.querySelectorAll("[data-calendar-date]").forEach((button) => {
     button.addEventListener("click", () => openEditDialog(button.dataset.calendarDate));
   });
+}
+
+function renderWeekdayHeader(label) {
+  return `<div class="period-weekday" role="columnheader">${escapeHtml(label)}</div>`;
+}
+
+function renderPeriodBlank(index) {
+  return `<div class="period-blank" aria-hidden="true" data-blank-index="${index}"></div>`;
 }
 
 function renderPeriodDay(date, shift) {
@@ -506,6 +524,23 @@ function renderPeriodDay(date, shift) {
       <span class="period-workers">${escapeHtml(workerSummary)}</span>
     </button>
   `;
+}
+
+function toggleTheme() {
+  setTheme(state.theme === "dark" ? "light" : "dark");
+}
+
+function setTheme(theme) {
+  state.theme = theme;
+  localStorage.setItem("shiftScheduleTheme", theme);
+  applyTheme(theme);
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  els.themeToggleButton.textContent = theme === "dark" ? "라이트모드" : "다크모드";
+  els.themeToggleButton.setAttribute("aria-pressed", String(theme === "dark"));
 }
 
 function renderHistoryItem(entry) {
@@ -781,6 +816,10 @@ function todayString() {
   const date = new Date();
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
+}
+
+function getInitialTheme() {
+  return localStorage.getItem("shiftScheduleTheme") === "dark" ? "dark" : "light";
 }
 
 function getPeriodRange(referenceDate) {
