@@ -219,6 +219,19 @@ button:focus-visible {
   font-weight: 800;
 }
 
+.file-path {
+  margin-top: 8px;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172033;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  padding: 9px 10px;
+}
+
 .download-actions {
   display: flex;
   align-items: center;

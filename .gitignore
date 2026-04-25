@@ -1,5 +1,6 @@
 .env
 data/shifts.json
 data/*.tmp
+data/*.xlsx
 node_modules/
 .DS_Store

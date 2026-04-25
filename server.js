@@ -82,6 +82,11 @@ async function handleApi(req, res, parsedUrl) {
       return;
     }
 
+    if (req.method === "POST" && pathname === "/api/shifts-template/save-local") {
+      await saveXlsxTemplateLocal(res);
+      return;
+    }
+
     if (req.method === "POST" && pathname === "/api/shifts/import-xlsx") {
       const body = await readRequestJson(req);
       await importShiftsFromXlsx(res, body);
@@ -714,6 +719,17 @@ function sendXlsxTemplate(res) {
     "Cache-Control": "no-store",
   });
   res.end(buffer);
+}
+
+async function saveXlsxTemplateLocal(res) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  const filePath = path.join(DATA_DIR, "shift-template.xlsx");
+  await fs.writeFile(filePath, createShiftTemplateWorkbook());
+  sendJson(res, 200, {
+    fileName: "shift-template.xlsx",
+    filePath,
+    message: "양식 파일을 생성했습니다.",
+  });
 }
 
 function createShiftTemplateWorkbook() {

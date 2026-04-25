@@ -20,8 +20,11 @@ const els = {
   todayShift: document.querySelector("#todayShift"),
   templateDownloadButton: document.querySelector("#templateDownloadButton"),
   downloadHelp: document.querySelector("#downloadHelp"),
+  downloadHelpText: document.querySelector("#downloadHelpText"),
+  templateLocalPath: document.querySelector("#templateLocalPath"),
   templateDirectLink: document.querySelector("#templateDirectLink"),
   copyTemplateUrlButton: document.querySelector("#copyTemplateUrlButton"),
+  copyTemplatePathButton: document.querySelector("#copyTemplatePathButton"),
   importForm: document.querySelector("#importForm"),
   importChangedByInput: document.querySelector("#importChangedByInput"),
   importReasonInput: document.querySelector("#importReasonInput"),
@@ -59,6 +62,7 @@ function bindEvents() {
   els.kakaoShareButton.addEventListener("click", shareToKakao);
   els.templateDownloadButton.addEventListener("click", downloadTemplate);
   els.copyTemplateUrlButton.addEventListener("click", copyTemplateUrl);
+  els.copyTemplatePathButton.addEventListener("click", copyTemplatePath);
   els.importForm.addEventListener("submit", importXlsx);
   els.clearMonthButton.addEventListener("click", async () => {
     state.month = "";
@@ -170,12 +174,14 @@ async function importXlsx(event) {
 }
 
 async function downloadTemplate() {
-  const url = `/api/shifts-template.xlsx?t=${Date.now()}`;
-  showDownloadHelp();
-  setStatus("양식 다운로드 요청을 보냈습니다.", "info");
-  setTimeout(() => {
-    window.location.assign(url);
-  }, 80);
+  try {
+    const data = await api("/api/shifts-template/save-local", { method: "POST" });
+    showDownloadHelp(data.filePath);
+    setStatus("양식 파일을 생성했습니다. 표시된 파일 경로에서 열어주세요.", "success");
+  } catch (error) {
+    showDownloadHelp("");
+    setStatus(error.message || "양식 파일 생성에 실패했습니다.", "error");
+  }
 }
 
 async function copyTemplateUrl() {
@@ -189,9 +195,29 @@ async function copyTemplateUrl() {
   }
 }
 
-function showDownloadHelp() {
+async function copyTemplatePath() {
+  const path = els.templateLocalPath.textContent.trim();
+  if (!path) {
+    setStatus("복사할 파일 경로가 없습니다. 먼저 양식 다운로드를 눌러주세요.", "warning");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(path);
+    setStatus("양식 파일 경로를 복사했습니다.", "success");
+  } catch {
+    setStatus(path, "info");
+  }
+}
+
+function showDownloadHelp(filePath) {
   const url = new URL("/api/shifts-template.xlsx", window.location.origin).href;
   els.templateDirectLink.href = url;
+  els.downloadHelpText.textContent = filePath
+    ? "브라우저 다운로드가 막혀도 아래 경로에 양식 파일을 생성했습니다."
+    : "자동 다운로드가 보이지 않으면 아래 링크를 열어주세요.";
+  els.templateLocalPath.textContent = filePath || "";
+  els.templateLocalPath.hidden = !filePath;
   els.downloadHelp.hidden = false;
 }
 

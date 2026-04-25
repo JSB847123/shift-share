@@ -39,10 +39,12 @@
           </div>
 
           <div class="download-help" id="downloadHelp" hidden>
-            <p>자동 다운로드가 보이지 않으면 아래 링크를 열어주세요.</p>
+            <p id="downloadHelpText">양식 파일을 생성했습니다.</p>
+            <p class="file-path" id="templateLocalPath"></p>
             <div class="download-actions">
               <a id="templateDirectLink" href="/api/shifts-template.xlsx" target="_blank" rel="noopener">shift-template.xlsx 직접 다운로드</a>
               <button class="secondary-button small" type="button" id="copyTemplateUrlButton">주소 복사</button>
+              <button class="secondary-button small" type="button" id="copyTemplatePathButton">파일 경로 복사</button>
             </div>
           </div>
 
