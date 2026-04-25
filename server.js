@@ -177,7 +177,7 @@ async function saveShift(res, date, body) {
   const result = await withDbLock(async () => {
     const db = await readDb();
     const existing = db.shifts[date] || null;
-    const actor = requireActor(body.changedBy);
+    const actor = normalizeWorkerName(body.changedBy) || "사용자";
     const reason = normalizeOptionalText(body.reason);
 
     if (existing) {
@@ -232,7 +232,7 @@ async function undoShift(res, date, body) {
 
     assertRevisionMatches(existing, body.revision);
 
-    const actor = requireActor(body.changedBy);
+    const actor = normalizeWorkerName(body.changedBy) || "사용자";
     const reason = normalizeOptionalText(body.reason) || "직전 변경 되돌리기";
     const latestEntry = [...db.history]
       .filter((entry) => entry.shiftDate === date)
@@ -296,7 +296,7 @@ async function replaceWorker(res, date, body) {
 
     assertRevisionMatches(existing, body.revision);
 
-    const actor = requireActor(body.changedBy);
+    const actor = normalizeWorkerName(body.changedBy) || "사용자";
     const reason = normalizeOptionalText(body.reason);
     const position = parsePosition(body.position || body.from);
     const newWorker = normalizeWorkerName(body.newWorker);
@@ -352,7 +352,7 @@ async function swapWorkers(res, date, body) {
 
     assertRevisionMatches(existing, body.revision);
 
-    const actor = requireActor(body.changedBy);
+    const actor = normalizeWorkerName(body.changedBy) || "사용자";
     const reason = normalizeOptionalText(body.reason);
     const a = parsePosition(body.a);
     const b = parsePosition(body.b);
@@ -548,14 +548,6 @@ function withDbLock(task) {
   const run = writeQueue.then(task, task);
   writeQueue = run.catch(() => {});
   return run;
-}
-
-function requireActor(value) {
-  const actor = normalizeWorkerName(value);
-  if (!actor) {
-    throw new HttpError(400, "변경한 사람 이름을 입력해주세요.");
-  }
-  return actor;
 }
 
 function normalizeWorkerPair(value, label) {

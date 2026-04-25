@@ -5,12 +5,15 @@ const state = {
   shifts: [],
   shift: null,
   todayShift: null,
+  calendarShifts: [],
   history: [],
   config: {
     kakaoJsKey: "",
     appBaseUrl: "",
   },
 };
+
+const periodRange = getPeriodRange(state.today);
 
 const els = {
   statusArea: document.querySelector("#statusArea"),
@@ -32,10 +35,25 @@ const els = {
   dateInput: document.querySelector("#dateInput"),
   monthInput: document.querySelector("#monthInput"),
   clearMonthButton: document.querySelector("#clearMonthButton"),
+  openSelectedEditButton: document.querySelector("#openSelectedEditButton"),
   listMeta: document.querySelector("#listMeta"),
   shiftList: document.querySelector("#shiftList"),
   selectedDateText: document.querySelector("#selectedDateText"),
+  undoSelectedButton: document.querySelector("#undoSelectedButton"),
   historyList: document.querySelector("#historyList"),
+  periodCalendar: document.querySelector("#periodCalendar"),
+  editDialog: document.querySelector("#editDialog"),
+  editForm: document.querySelector("#editForm"),
+  editTitle: document.querySelector("#editTitle"),
+  closeEditButton: document.querySelector("#closeEditButton"),
+  cancelEditButton: document.querySelector("#cancelEditButton"),
+  saveButton: document.querySelector("#saveButton"),
+  taxWorker1: document.querySelector("#taxWorker1"),
+  taxWorker2: document.querySelector("#taxWorker2"),
+  districtWorker1: document.querySelector("#districtWorker1"),
+  districtWorker2: document.querySelector("#districtWorker2"),
+  changedByInput: document.querySelector("#changedByInput"),
+  reasonInput: document.querySelector("#reasonInput"),
   undoDialog: document.querySelector("#undoDialog"),
   undoForm: document.querySelector("#undoForm"),
   undoDateText: document.querySelector("#undoDateText"),
@@ -64,6 +82,7 @@ function bindEvents() {
   els.copyTemplateUrlButton.addEventListener("click", copyTemplateUrl);
   els.copyTemplatePathButton.addEventListener("click", copyTemplatePath);
   els.importForm.addEventListener("submit", importXlsx);
+  els.openSelectedEditButton.addEventListener("click", () => openEditDialog(state.date));
   els.clearMonthButton.addEventListener("click", async () => {
     state.month = "";
     els.monthInput.value = "";
@@ -80,13 +99,17 @@ function bindEvents() {
     await loadShifts();
   });
 
+  els.editForm.addEventListener("submit", saveSchedule);
+  els.closeEditButton.addEventListener("click", closeEditDialog);
+  els.cancelEditButton.addEventListener("click", closeEditDialog);
+  els.undoSelectedButton.addEventListener("click", () => openUndoDialog(state.date));
   els.undoForm.addEventListener("submit", undoSchedule);
   els.closeUndoButton.addEventListener("click", closeUndoDialog);
   els.cancelUndoButton.addEventListener("click", closeUndoDialog);
 }
 
 async function reloadAll() {
-  await Promise.all([loadShifts(), loadShift(state.date), loadTodayShift()]);
+  await Promise.all([loadShifts(), loadShift(state.date), loadTodayShift(), loadPeriodCalendar()]);
 }
 
 async function selectDate(date) {
@@ -95,6 +118,7 @@ async function selectDate(date) {
   window.history.replaceState(null, "", `/shifts/${date}`);
   await loadShift(date);
   renderShiftList();
+  renderPeriodCalendar();
 }
 
 async function loadConfig() {
@@ -134,6 +158,25 @@ async function loadTodayShift() {
     renderTodayShift();
   } catch (error) {
     setStatus(error.message || "오늘의 근무자 조회에 실패했습니다.", "error");
+  }
+}
+
+async function loadPeriodCalendar() {
+  try {
+    const months = [...new Set([periodRange.start.slice(0, 7), periodRange.end.slice(0, 7)])];
+    const responses = await Promise.all(
+      months.map((month) => api(`/api/shifts?month=${encodeURIComponent(month)}`))
+    );
+    const byDate = new Map();
+    responses
+      .flatMap((data) => data.shifts || [])
+      .filter((shift) => shift.date >= periodRange.start && shift.date <= periodRange.end)
+      .forEach((shift) => byDate.set(shift.date, shift));
+
+    state.calendarShifts = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    renderPeriodCalendar();
+  } catch (error) {
+    setStatus(error.message || "근무 달력 조회에 실패했습니다.", "error");
   }
 }
 
@@ -221,6 +264,61 @@ function showDownloadHelp(filePath) {
   els.downloadHelp.hidden = false;
 }
 
+async function openEditDialog(date) {
+  await selectDate(date);
+
+  const shift = state.shift;
+  const taxOfficeWorkers = shift?.taxOfficeWorkers || ["", ""];
+  const districtOfficeWorkers = shift?.districtOfficeWorkers || ["", ""];
+
+  els.editTitle.textContent = `${formatKoreanDate(date)} 근무표 ${shift ? "수정" : "등록"}`;
+  els.taxWorker1.value = taxOfficeWorkers[0] || "";
+  els.taxWorker2.value = taxOfficeWorkers[1] || "";
+  els.districtWorker1.value = districtOfficeWorkers[0] || "";
+  els.districtWorker2.value = districtOfficeWorkers[1] || "";
+  els.changedByInput.value = els.changedByInput.value || getStoredActor();
+  els.reasonInput.value = "";
+  els.saveButton.textContent = shift ? "저장" : "등록";
+  openDialog(els.editDialog);
+}
+
+function closeEditDialog() {
+  els.editDialog.close();
+}
+
+async function saveSchedule(event) {
+  event.preventDefault();
+
+  const payload = {
+    taxOfficeWorkers: [els.taxWorker1.value, els.taxWorker2.value].map(normalizeInputName),
+    districtOfficeWorkers: [els.districtWorker1.value, els.districtWorker2.value].map(normalizeInputName),
+    changedBy: els.changedByInput.value,
+    reason: els.reasonInput.value,
+    revision: state.shift?.revision ?? null,
+  };
+
+  const validationError = getAssignmentValidationError(payload.taxOfficeWorkers, payload.districtOfficeWorkers);
+  if (validationError) {
+    setStatus(validationError, "error");
+    return;
+  }
+
+  try {
+    rememberActor(payload.changedBy);
+    const data = await api(`/api/shifts/${encodeURIComponent(state.date)}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    state.shift = data.shift;
+    state.history = sortHistory(data.history || []);
+    closeEditDialog();
+    setStatus(`${formatKoreanDate(state.date)} 근무표를 저장했습니다.`, "success");
+    await reloadAll();
+  } catch (error) {
+    handleApiError(error, "근무표 저장에 실패했습니다.");
+  }
+}
+
 async function openUndoDialog(date) {
   await selectDate(date);
   if (!state.shift) {
@@ -298,7 +396,7 @@ function renderShiftList() {
   els.listMeta.textContent = state.month ? `${state.month} 표시 중` : "전체 표시 중";
 
   if (!state.shifts.length) {
-    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 양식을 다운로드해 xlsx 파일로 등록하세요.</div>`;
+    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 선택 날짜를 정한 뒤 수정/등록 버튼으로 입력하세요.</div>`;
     return;
   }
 
@@ -324,8 +422,8 @@ function renderShiftList() {
     button.addEventListener("click", () => selectDate(button.dataset.selectDate));
   });
 
-  els.shiftList.querySelectorAll("[data-undo-date]").forEach((button) => {
-    button.addEventListener("click", () => openUndoDialog(button.dataset.undoDate));
+  els.shiftList.querySelectorAll("[data-edit-date]").forEach((button) => {
+    button.addEventListener("click", () => openEditDialog(button.dataset.editDate));
   });
 }
 
@@ -348,7 +446,7 @@ function renderShiftRow(shift) {
       <td>${renderWorkerNames(shift.districtOfficeWorkers)}</td>
       <td>
         <div class="row-actions">
-          <button class="danger-ghost-button small" type="button" data-undo-date="${escapeHtml(shift.date)}">되돌리기</button>
+          <button class="primary-button small" type="button" data-edit-date="${escapeHtml(shift.date)}">수정</button>
         </div>
       </td>
     </tr>
@@ -365,16 +463,48 @@ function renderWorkerNames(workers) {
 
 function renderHistory() {
   els.selectedDateText.textContent = formatKoreanDate(state.date);
+  els.undoSelectedButton.disabled = !state.shift;
 
   if (!state.history.length) {
-    els.historyList.innerHTML = `<div class="empty-state compact">선택한 날짜의 변경 이력이 없습니다.</div>`;
+    els.historyList.innerHTML = `<div class="empty-state compact">선택한 날짜의 최신 변경 이력이 없습니다.</div>`;
     return;
   }
 
+  const latestHistory = state.history.slice(0, 2);
   els.historyList.innerHTML = `
     <div class="history-list">
-      ${state.history.map(renderHistoryItem).join("")}
+      ${latestHistory.map(renderHistoryItem).join("")}
     </div>
+  `;
+}
+
+function renderPeriodCalendar() {
+  const byDate = new Map(state.calendarShifts.map((shift) => [shift.date, shift]));
+  const days = enumerateDates(periodRange.start, periodRange.end);
+
+  els.periodCalendar.innerHTML = `
+    <div class="period-calendar-grid">
+      ${days.map((date) => renderPeriodDay(date, byDate.get(date))).join("")}
+    </div>
+  `;
+
+  els.periodCalendar.querySelectorAll("[data-calendar-date]").forEach((button) => {
+    button.addEventListener("click", () => openEditDialog(button.dataset.calendarDate));
+  });
+}
+
+function renderPeriodDay(date, shift) {
+  const selected = date === state.date ? " is-selected" : "";
+  const dayLabel = formatShortDate(date);
+  const workerSummary = shift
+    ? `${formatWorkerLine(shift.taxOfficeWorkers)} / ${formatWorkerLine(shift.districtOfficeWorkers)}`
+    : "미등록";
+
+  return `
+    <button class="period-day${selected}" type="button" data-calendar-date="${escapeHtml(date)}">
+      <span class="period-date">${escapeHtml(dayLabel)}</span>
+      <span class="period-workers">${escapeHtml(workerSummary)}</span>
+    </button>
   `;
 }
 
@@ -528,16 +658,18 @@ function openDialog(dialog) {
 }
 
 function rememberActor(value) {
-  const actor = value.trim();
+  const actor = String(value || "").trim();
   if (!actor) return;
   localStorage.setItem("shiftScheduleActor", actor);
   els.importChangedByInput.value = actor;
+  els.changedByInput.value = actor;
   els.undoChangedByInput.value = actor;
 }
 
 function restoreActorNames() {
   const actor = getStoredActor();
   els.importChangedByInput.value = actor;
+  els.changedByInput.value = actor;
   els.undoChangedByInput.value = actor;
 }
 
@@ -547,6 +679,37 @@ function getStoredActor() {
 
 function getShiftFromList(date) {
   return state.shifts.find((shift) => shift.date === date) || null;
+}
+
+function normalizeInputName(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function getAssignmentValidationError(taxOfficeWorkers, districtOfficeWorkers) {
+  const duplicateNames = findDuplicateNames(taxOfficeWorkers, districtOfficeWorkers);
+  if (duplicateNames.length) {
+    return `같은 날짜에 같은 사람이 중복 배정되어 있습니다: ${duplicateNames.join(", ")}`;
+  }
+  return "";
+}
+
+function findDuplicateNames(taxOfficeWorkers, districtOfficeWorkers) {
+  const seen = new Map();
+  const duplicates = new Set();
+
+  [...taxOfficeWorkers, ...districtOfficeWorkers].forEach((name) => {
+    const normalized = normalizeInputName(name);
+    if (!normalized) return;
+
+    const key = normalized.toLocaleLowerCase("ko-KR");
+    if (seen.has(key)) {
+      duplicates.add(normalized);
+    } else {
+      seen.set(key, normalized);
+    }
+  });
+
+  return [...duplicates];
 }
 
 function formatWorkerLine(workers) {
@@ -603,6 +766,11 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatShortDate(date) {
+  const [, month, day] = date.split("-").map(Number);
+  return `${month}/${day}`;
+}
+
 function getInitialDate() {
   const pathMatch = window.location.pathname.match(/^\/shifts\/(\d{4}-\d{2}-\d{2})$/);
   const params = new URLSearchParams(window.location.search);
@@ -613,6 +781,45 @@ function todayString() {
   const date = new Date();
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
+}
+
+function getPeriodRange(referenceDate) {
+  const year = referenceDate.slice(0, 4);
+  return {
+    start: `${year}-05-01`,
+    end: `${year}-06-01`,
+  };
+}
+
+function enumerateDates(start, end) {
+  const dates = [];
+  let cursor = parseLocalDate(start);
+  const last = parseLocalDate(end);
+
+  while (cursor <= last) {
+    dates.push(formatDateValue(cursor));
+    cursor = addDays(cursor, 1);
+  }
+
+  return dates;
+}
+
+function parseLocalDate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function formatDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function escapeHtml(value) {

@@ -103,7 +103,12 @@ h2 {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(280px, 0.8fr) minmax(560px, 1.6fr);
+  grid-template-columns: minmax(280px, 0.72fr) minmax(620px, 1.6fr);
+  grid-template-areas:
+    "today today"
+    "import list"
+    "controls list"
+    "history calendar";
   gap: 16px;
   align-items: start;
 }
@@ -119,14 +124,38 @@ h2 {
 .today-panel,
 .import-panel,
 .controls-panel,
-.history-panel {
+.history-panel,
+.list-panel,
+.period-calendar-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
+.today-panel {
+  grid-area: today;
+}
+
+.import-panel {
+  grid-area: import;
+  gap: 10px;
+  padding: 14px;
+}
+
+.controls-panel {
+  grid-area: controls;
+}
+
+.list-panel {
+  grid-area: list;
+}
+
 .history-panel {
-  grid-column: 1 / -1;
+  grid-area: history;
+}
+
+.period-calendar-panel {
+  grid-area: calendar;
 }
 
 .controls-grid,
@@ -211,7 +240,7 @@ button:focus-visible {
   border: 1px solid #a7f3d0;
   border-radius: 8px;
   background: #ecfdf5;
-  padding: 12px;
+  padding: 10px;
 }
 
 .download-help p {
@@ -243,6 +272,21 @@ button:focus-visible {
 .download-actions a {
   color: var(--primary);
   font-weight: 900;
+}
+
+.compact-import {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.compact-import summary {
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.compact-form {
+  margin-top: 12px;
 }
 
 .kakao-button {
@@ -347,7 +391,25 @@ button:focus-visible {
 .shift-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 560px;
+  table-layout: fixed;
+}
+
+.shift-table th:nth-child(1),
+.shift-table td:nth-child(1) {
+  width: 32%;
+}
+
+.shift-table th:nth-child(2),
+.shift-table td:nth-child(2),
+.shift-table th:nth-child(3),
+.shift-table td:nth-child(3) {
+  width: 24%;
+}
+
+.shift-table th:nth-child(4),
+.shift-table td:nth-child(4) {
+  width: 20%;
 }
 
 .shift-table th,
@@ -418,6 +480,14 @@ button:focus-visible {
   gap: 10px;
 }
 
+.history-heading-side {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .history-item {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -469,11 +539,64 @@ button:focus-visible {
   line-height: 1.6;
 }
 
+.period-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.period-day {
+  min-height: 98px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  text-align: left;
+}
+
+.period-day:hover,
+.period-day.is-selected {
+  border-color: var(--primary);
+  background: #eff6ff;
+}
+
+.period-date {
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.period-workers {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 920px) {
-  .workspace,
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "today"
+      "import"
+      "controls"
+      "list"
+      "history"
+      "calendar";
+  }
+
   .two-columns,
   .today-grid {
     grid-template-columns: 1fr;
+  }
+
+  .period-calendar-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -501,6 +624,10 @@ button:focus-visible {
   }
 
   .shift-table {
-    min-width: 620px;
+    min-width: 540px;
+  }
+
+  .period-calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
