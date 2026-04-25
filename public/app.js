@@ -35,10 +35,6 @@ const els = {
   importChangedByInput: document.querySelector("#importChangedByInput"),
   importReasonInput: document.querySelector("#importReasonInput"),
   xlsxInput: document.querySelector("#xlsxInput"),
-  dateInput: document.querySelector("#dateInput"),
-  monthInput: document.querySelector("#monthInput"),
-  clearMonthButton: document.querySelector("#clearMonthButton"),
-  openSelectedEditButton: document.querySelector("#openSelectedEditButton"),
   listMeta: document.querySelector("#listMeta"),
   shiftList: document.querySelector("#shiftList"),
   selectedDateText: document.querySelector("#selectedDateText"),
@@ -70,8 +66,6 @@ init();
 
 async function init() {
   applyTheme(state.theme);
-  els.dateInput.value = state.date;
-  els.monthInput.value = "";
   restoreActorNames();
   bindEvents();
 
@@ -87,22 +81,6 @@ function bindEvents() {
   els.copyTemplateUrlButton.addEventListener("click", copyTemplateUrl);
   els.copyTemplatePathButton.addEventListener("click", copyTemplatePath);
   els.importForm.addEventListener("submit", importXlsx);
-  els.openSelectedEditButton.addEventListener("click", () => openEditDialog(state.date));
-  els.clearMonthButton.addEventListener("click", async () => {
-    state.month = "";
-    els.monthInput.value = "";
-    await loadShifts();
-  });
-
-  els.dateInput.addEventListener("change", async () => {
-    if (!els.dateInput.value) return;
-    await selectDate(els.dateInput.value);
-  });
-
-  els.monthInput.addEventListener("change", async () => {
-    state.month = els.monthInput.value;
-    await loadShifts();
-  });
 
   els.editForm.addEventListener("submit", saveSchedule);
   els.closeEditButton.addEventListener("click", closeEditDialog);
@@ -119,7 +97,6 @@ async function reloadAll() {
 
 async function selectDate(date) {
   state.date = date;
-  els.dateInput.value = date;
   window.history.replaceState(null, "", `/shifts/${date}`);
   await loadShift(date);
   renderShiftList();
@@ -401,7 +378,7 @@ function renderShiftList() {
   els.listMeta.textContent = state.month ? `${state.month} 표시 중` : "전체 표시 중";
 
   if (!state.shifts.length) {
-    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 선택 날짜를 정한 뒤 수정/등록 버튼으로 입력하세요.</div>`;
+    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 달력에서 날짜를 눌러 등록하세요.</div>`;
     return;
   }
 

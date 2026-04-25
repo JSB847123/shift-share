@@ -152,7 +152,6 @@ h2 {
   grid-template-areas:
     "today today"
     "import list"
-    "controls list"
     "history calendar";
   gap: 16px;
   align-items: start;
@@ -168,7 +167,6 @@ h2 {
 
 .today-panel,
 .import-panel,
-.controls-panel,
 .history-panel,
 .list-panel,
 .period-calendar-panel {
@@ -185,10 +183,6 @@ h2 {
   grid-area: import;
   gap: 10px;
   padding: 14px;
-}
-
-.controls-panel {
-  grid-area: controls;
 }
 
 .list-panel {
@@ -411,6 +405,21 @@ button:focus-visible {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.today-grid .worker-stack {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.today-grid .worker-stack span {
+  display: inline-flex;
+  font-size: calc(1rem + 3pt);
+  font-weight: 800;
+  line-height: 1.25;
+  min-height: auto;
 }
 
 .worker-group {
@@ -658,7 +667,6 @@ button:focus-visible {
     grid-template-areas:
       "today"
       "import"
-      "controls"
       "list"
       "history"
       "calendar";
