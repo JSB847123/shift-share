@@ -1,8 +1,10 @@
 const state = {
   date: getInitialDate(),
+  today: todayString(),
   month: "",
   shifts: [],
   shift: null,
+  todayShift: null,
   history: [],
   config: {
     kakaoJsKey: "",
@@ -14,32 +16,23 @@ const els = {
   statusArea: document.querySelector("#statusArea"),
   refreshButton: document.querySelector("#refreshButton"),
   kakaoShareButton: document.querySelector("#kakaoShareButton"),
+  todayDateText: document.querySelector("#todayDateText"),
+  todayShift: document.querySelector("#todayShift"),
+  importForm: document.querySelector("#importForm"),
+  importChangedByInput: document.querySelector("#importChangedByInput"),
+  importReasonInput: document.querySelector("#importReasonInput"),
+  xlsxInput: document.querySelector("#xlsxInput"),
   dateInput: document.querySelector("#dateInput"),
   monthInput: document.querySelector("#monthInput"),
   clearMonthButton: document.querySelector("#clearMonthButton"),
-  openEditButton: document.querySelector("#openEditButton"),
   listMeta: document.querySelector("#listMeta"),
   shiftList: document.querySelector("#shiftList"),
   selectedDateText: document.querySelector("#selectedDateText"),
   historyList: document.querySelector("#historyList"),
-  editDialog: document.querySelector("#editDialog"),
-  editForm: document.querySelector("#editForm"),
-  editTitle: document.querySelector("#editTitle"),
-  taxWorker1: document.querySelector("#taxWorker1"),
-  taxWorker2: document.querySelector("#taxWorker2"),
-  districtWorker1: document.querySelector("#districtWorker1"),
-  districtWorker2: document.querySelector("#districtWorker2"),
-  changedByInput: document.querySelector("#changedByInput"),
-  editPinInput: document.querySelector("#editPinInput"),
-  reasonInput: document.querySelector("#reasonInput"),
-  saveButton: document.querySelector("#saveButton"),
-  closeEditButton: document.querySelector("#closeEditButton"),
-  cancelEditButton: document.querySelector("#cancelEditButton"),
   undoDialog: document.querySelector("#undoDialog"),
   undoForm: document.querySelector("#undoForm"),
   undoDateText: document.querySelector("#undoDateText"),
   undoChangedByInput: document.querySelector("#undoChangedByInput"),
-  undoEditPinInput: document.querySelector("#undoEditPinInput"),
   undoReasonInput: document.querySelector("#undoReasonInput"),
   closeUndoButton: document.querySelector("#closeUndoButton"),
   cancelUndoButton: document.querySelector("#cancelUndoButton"),
@@ -60,7 +53,7 @@ async function init() {
 function bindEvents() {
   els.refreshButton.addEventListener("click", reloadAll);
   els.kakaoShareButton.addEventListener("click", shareToKakao);
-  els.openEditButton.addEventListener("click", () => openEditDialog(state.date));
+  els.importForm.addEventListener("submit", importXlsx);
   els.clearMonthButton.addEventListener("click", async () => {
     state.month = "";
     els.monthInput.value = "";
@@ -77,17 +70,13 @@ function bindEvents() {
     await loadShifts();
   });
 
-  els.editForm.addEventListener("submit", saveSchedule);
-  els.closeEditButton.addEventListener("click", closeEditDialog);
-  els.cancelEditButton.addEventListener("click", closeEditDialog);
-
   els.undoForm.addEventListener("submit", undoSchedule);
   els.closeUndoButton.addEventListener("click", closeUndoDialog);
   els.cancelUndoButton.addEventListener("click", closeUndoDialog);
 }
 
 async function reloadAll() {
-  await Promise.all([loadShifts(), loadShift(state.date)]);
+  await Promise.all([loadShifts(), loadShift(state.date), loadTodayShift()]);
 }
 
 async function selectDate(date) {
@@ -128,59 +117,49 @@ async function loadShift(date) {
   }
 }
 
-function openEditDialog(date) {
-  state.date = date;
-  els.dateInput.value = date;
-  const shift = getShiftFromList(date) || (state.shift?.date === date ? state.shift : null);
-  state.shift = shift;
-
-  els.editTitle.textContent = `${formatKoreanDate(date)} 근무자 변경`;
-  els.saveButton.textContent = shift ? "저장" : "등록";
-  els.taxWorker1.value = shift?.taxOfficeWorkers?.[0] || "";
-  els.taxWorker2.value = shift?.taxOfficeWorkers?.[1] || "";
-  els.districtWorker1.value = shift?.districtOfficeWorkers?.[0] || "";
-  els.districtWorker2.value = shift?.districtOfficeWorkers?.[1] || "";
-  els.reasonInput.value = "";
-  els.changedByInput.value = els.changedByInput.value || getStoredActor();
-
-  openDialog(els.editDialog);
+async function loadTodayShift() {
+  try {
+    const data = await api(`/api/shifts/${encodeURIComponent(state.today)}`);
+    state.todayShift = data.shift;
+    renderTodayShift();
+  } catch (error) {
+    setStatus(error.message || "오늘의 근무자 조회에 실패했습니다.", "error");
+  }
 }
 
-function closeEditDialog() {
-  els.editDialog.close();
-}
-
-async function saveSchedule(event) {
+async function importXlsx(event) {
   event.preventDefault();
-  const payload = {
-    taxOfficeWorkers: [els.taxWorker1.value, els.taxWorker2.value],
-    districtOfficeWorkers: [els.districtWorker1.value, els.districtWorker2.value],
-    changedBy: els.changedByInput.value,
-    editPin: els.editPinInput.value,
-    reason: els.reasonInput.value,
-    revision: state.shift ? state.shift.revision : undefined,
-  };
+  const file = els.xlsxInput.files?.[0];
+  if (!file) {
+    setStatus("업로드할 xlsx 파일을 선택해주세요.", "error");
+    return;
+  }
 
-  const localError = validateWorkerPayload(payload.taxOfficeWorkers, payload.districtOfficeWorkers);
-  if (localError) {
-    setStatus(localError, "error");
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    setStatus("xlsx 파일만 업로드할 수 있습니다.", "error");
     return;
   }
 
   try {
+    const fileBase64 = await fileToBase64(file);
+    const payload = {
+      fileBase64,
+      fileName: file.name,
+      changedBy: els.importChangedByInput.value,
+      reason: els.importReasonInput.value,
+    };
+
     rememberActor(payload.changedBy);
-    const data = await api(`/api/shifts/${encodeURIComponent(state.date)}`, {
+    const data = await api("/api/shifts/import-xlsx", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    state.shift = data.shift;
-    state.history = sortHistory(data.history || []);
-    closeEditDialog();
-    setStatus("근무표를 저장했습니다.", "success");
-    await loadShifts();
-    renderHistory();
+
+    els.xlsxInput.value = "";
+    setStatus(`${data.count}건의 근무표를 등록했습니다.`, "success");
+    await reloadAll();
   } catch (error) {
-    handleApiError(error, "근무표 저장에 실패했습니다.");
+    handleApiError(error, "xlsx 등록에 실패했습니다.");
   }
 }
 
@@ -207,7 +186,6 @@ async function undoSchedule(event) {
 
   const payload = {
     changedBy: els.undoChangedByInput.value,
-    editPin: els.undoEditPinInput.value,
     reason: els.undoReasonInput.value,
     revision: state.shift.revision,
   };
@@ -222,18 +200,47 @@ async function undoSchedule(event) {
     state.history = sortHistory(data.history || []);
     closeUndoDialog();
     setStatus("직전 변경을 되돌렸습니다.", "success");
-    await loadShifts();
-    renderHistory();
+    await reloadAll();
   } catch (error) {
     handleApiError(error, "되돌리기에 실패했습니다.");
   }
+}
+
+function renderTodayShift() {
+  els.todayDateText.textContent = formatKoreanDate(state.today);
+
+  if (!state.todayShift) {
+    els.todayShift.innerHTML = `<div class="empty-state compact">오늘 등록된 근무표가 없습니다.</div>`;
+    return;
+  }
+
+  els.todayShift.innerHTML = `
+    <div class="today-grid">
+      ${renderWorkerGroup("세무서", state.todayShift.taxOfficeWorkers)}
+      ${renderWorkerGroup("구청 신고창구", state.todayShift.districtOfficeWorkers)}
+    </div>
+    <p class="meta today-meta">최종 수정 ${escapeHtml(formatDateTime(state.todayShift.updatedAt))} · ${escapeHtml(
+      state.todayShift.updatedBy
+    )}</p>
+  `;
+}
+
+function renderWorkerGroup(title, workers) {
+  return `
+    <div class="worker-group">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="worker-stack">
+        ${workers.map((worker) => `<span>${escapeHtml(worker || "비어 있음")}</span>`).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function renderShiftList() {
   els.listMeta.textContent = state.month ? `${state.month} 표시 중` : "전체 표시 중";
 
   if (!state.shifts.length) {
-    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 날짜를 선택하고 근무자 변경을 눌러 등록하세요.</div>`;
+    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 양식을 다운로드해 xlsx 파일로 등록하세요.</div>`;
     return;
   }
 
@@ -257,13 +264,6 @@ function renderShiftList() {
 
   els.shiftList.querySelectorAll("[data-select-date]").forEach((button) => {
     button.addEventListener("click", () => selectDate(button.dataset.selectDate));
-  });
-
-  els.shiftList.querySelectorAll("[data-edit-date]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await selectDate(button.dataset.editDate);
-      openEditDialog(button.dataset.editDate);
-    });
   });
 
   els.shiftList.querySelectorAll("[data-undo-date]").forEach((button) => {
@@ -290,7 +290,6 @@ function renderShiftRow(shift) {
       <td>${renderWorkerNames(shift.districtOfficeWorkers)}</td>
       <td>
         <div class="row-actions">
-          <button class="secondary-button small" type="button" data-edit-date="${escapeHtml(shift.date)}">근무자 변경</button>
           <button class="danger-ghost-button small" type="button" data-undo-date="${escapeHtml(shift.date)}">되돌리기</button>
         </div>
       </td>
@@ -328,6 +327,8 @@ function renderHistoryItem(entry) {
     replace: "교체",
     swap: "맞바꾸기",
     undo: "되돌리기",
+    "xlsx-create": "xlsx 등록",
+    "xlsx-update": "xlsx 업데이트",
   }[entry.action] || "변경";
 
   return `
@@ -344,23 +345,6 @@ function renderHistoryItem(entry) {
       </div>
     </article>
   `;
-}
-
-function validateWorkerPayload(taxOfficeWorkers, districtOfficeWorkers) {
-  if (taxOfficeWorkers.length !== 2 || districtOfficeWorkers.length !== 2) {
-    return "근무지는 각각 2칸이어야 합니다.";
-  }
-
-  const seen = new Map();
-  for (const name of [...taxOfficeWorkers, ...districtOfficeWorkers].map((value) => value.trim()).filter(Boolean)) {
-    const key = name.toLocaleLowerCase("ko-KR");
-    if (seen.has(key)) {
-      return `같은 사람이 중복 배정되어 있습니다: ${name}`;
-    }
-    seen.set(key, name);
-  }
-
-  return "";
 }
 
 function shareToKakao() {
@@ -471,13 +455,13 @@ function rememberActor(value) {
   const actor = value.trim();
   if (!actor) return;
   localStorage.setItem("shiftScheduleActor", actor);
-  els.changedByInput.value = actor;
+  els.importChangedByInput.value = actor;
   els.undoChangedByInput.value = actor;
 }
 
 function restoreActorNames() {
   const actor = getStoredActor();
-  els.changedByInput.value = actor;
+  els.importChangedByInput.value = actor;
   els.undoChangedByInput.value = actor;
 }
 
@@ -511,6 +495,20 @@ function sortHistory(history) {
 
 function getShareBaseUrl() {
   return (state.config.appBaseUrl || window.location.origin).replace(/\/+$/, "");
+}
+
+function fileToBase64(file) {
+  return file.arrayBuffer().then((buffer) => arrayBufferToBase64(buffer));
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function formatKoreanDate(date) {

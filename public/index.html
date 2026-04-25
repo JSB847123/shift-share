@@ -24,24 +24,60 @@
       <div class="status-area" id="statusArea" role="status" aria-live="polite"></div>
 
       <main class="workspace">
+        <section class="panel today-panel" aria-labelledby="todayTitle">
+          <div class="panel-heading">
+            <h2 id="todayTitle">오늘의 근무자</h2>
+            <p class="meta" id="todayDateText"></p>
+          </div>
+          <div id="todayShift"></div>
+        </section>
+
+        <section class="panel import-panel" aria-labelledby="importTitle">
+          <div class="panel-heading">
+            <h2 id="importTitle">근무자 등록</h2>
+            <a class="download-button" href="/api/shifts-template.xlsx" download>양식 다운로드</a>
+          </div>
+
+          <form id="importForm" class="stacked-form">
+            <div class="input-grid two-columns">
+              <label class="field">
+                <span>등록자</span>
+                <input id="importChangedByInput" autocomplete="name" />
+              </label>
+              <label class="field">
+                <span>메모</span>
+                <input id="importReasonInput" autocomplete="off" value="엑셀 파일 등록" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span>근무표 xlsx 파일</span>
+              <input id="xlsxInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            </label>
+
+            <div class="button-row">
+              <button class="primary-button" type="submit">xlsx 업로드 등록</button>
+            </div>
+          </form>
+        </section>
+
         <section class="panel controls-panel" aria-labelledby="controlsTitle">
           <div class="panel-heading">
-            <h2 id="controlsTitle">근무표 관리</h2>
+            <h2 id="controlsTitle">목록 보기</h2>
           </div>
 
           <div class="controls-grid">
             <label class="field">
-              <span>수정할 날짜</span>
+              <span>선택 날짜</span>
               <input id="dateInput" type="date" />
             </label>
             <label class="field">
-              <span>목록 월 필터</span>
+              <span>월 필터</span>
               <input id="monthInput" type="month" />
             </label>
           </div>
 
           <div class="button-row">
-            <button class="primary-button" type="button" id="openEditButton">근무자 변경</button>
             <button class="secondary-button" type="button" id="clearMonthButton">전체 보기</button>
           </div>
         </section>
@@ -64,55 +100,6 @@
       </main>
     </div>
 
-    <dialog class="edit-dialog" id="editDialog">
-      <form id="editForm" method="dialog" class="stacked-form">
-        <div class="dialog-heading">
-          <h2 id="editTitle">근무자 변경</h2>
-          <button class="icon-button" type="button" id="closeEditButton" aria-label="닫기">×</button>
-        </div>
-
-        <div class="input-grid two-columns">
-          <label class="field">
-            <span>세무서 1</span>
-            <input id="taxWorker1" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>세무서 2</span>
-            <input id="taxWorker2" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>구청 신고창구 1</span>
-            <input id="districtWorker1" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>구청 신고창구 2</span>
-            <input id="districtWorker2" autocomplete="off" />
-          </label>
-        </div>
-
-        <div class="input-grid two-columns">
-          <label class="field">
-            <span>변경자</span>
-            <input id="changedByInput" autocomplete="name" />
-          </label>
-          <label class="field">
-            <span>편집 비밀번호</span>
-            <input id="editPinInput" type="password" autocomplete="current-password" />
-          </label>
-        </div>
-
-        <label class="field">
-          <span>메모</span>
-          <input id="reasonInput" autocomplete="off" />
-        </label>
-
-        <div class="button-row end">
-          <button class="secondary-button" type="button" id="cancelEditButton">취소</button>
-          <button class="primary-button" type="submit" id="saveButton">저장</button>
-        </div>
-      </form>
-    </dialog>
-
     <dialog class="edit-dialog" id="undoDialog">
       <form id="undoForm" method="dialog" class="stacked-form">
         <div class="dialog-heading">
@@ -128,15 +115,10 @@
             <input id="undoChangedByInput" autocomplete="name" />
           </label>
           <label class="field">
-            <span>편집 비밀번호</span>
-            <input id="undoEditPinInput" type="password" autocomplete="current-password" />
+            <span>메모</span>
+            <input id="undoReasonInput" autocomplete="off" value="직전 변경 되돌리기" />
           </label>
         </div>
-
-        <label class="field">
-          <span>메모</span>
-          <input id="undoReasonInput" autocomplete="off" value="직전 변경 되돌리기" />
-        </label>
 
         <div class="button-row end">
           <button class="secondary-button" type="button" id="cancelUndoButton">취소</button>

@@ -5,9 +5,8 @@
 ## 실행
 
 1. `.env.example`을 참고해 `.env`를 만듭니다.
-2. `SHIFT_EDIT_PIN`을 설정합니다.
-3. 카카오톡 공유를 사용할 경우 `KAKAO_JS_KEY`를 설정합니다.
-4. 실행합니다.
+2. 카카오톡 공유를 사용할 경우 `KAKAO_JS_KEY`를 설정합니다.
+3. 실행합니다.
 
 ```powershell
 npm start
@@ -18,7 +17,6 @@ npm start
 ## 환경변수
 
 - `PORT`: 서버 포트입니다. 기본값은 `3000`입니다.
-- `SHIFT_EDIT_PIN`: 근무표 수정, 교체, 맞바꾸기에 필요한 서버 전용 편집 비밀번호입니다.
 - `KAKAO_JS_KEY`: 카카오 JavaScript SDK 초기화에 사용하는 JavaScript 키입니다.
 - `NEXT_PUBLIC_KAKAO_JS_KEY`: Next.js식 이름을 쓰고 싶을 때의 대체 키입니다.
 - `APP_BASE_URL`: 카카오톡 공유 링크에 사용할 외부 접속 URL입니다.
@@ -26,6 +24,7 @@ npm start
 ## 데이터 저장
 
 - 근무표와 변경 이력은 `data/shifts.json`에 저장됩니다.
+- 근무표는 xlsx 양식을 내려받아 작성한 뒤 업로드해서 등록합니다.
 - 같은 날짜의 세무서 2칸, 구청 신고창구 2칸 구조로 저장됩니다.
 - 근무자 칸은 비워서 저장할 수 있습니다.
 - 같은 날짜 중복 배정은 저장되지 않습니다.
@@ -42,6 +41,8 @@ npm start
 ## API
 
 - `GET /api/shifts?month=YYYY-MM`: 월별 근무표 목록
+- `GET /api/shifts-template.xlsx`: xlsx 등록 양식 다운로드
+- `POST /api/shifts/import-xlsx`: xlsx 파일 근무표 등록
 - `GET /api/shifts/YYYY-MM-DD`: 날짜별 근무표와 변경 이력
 - `POST /api/shifts/YYYY-MM-DD`: 최초 등록 또는 수정
 - `PATCH /api/shifts/YYYY-MM-DD/replace`: 근무자 1명 교체

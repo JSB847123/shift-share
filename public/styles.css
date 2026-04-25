@@ -116,6 +116,8 @@ h2 {
   padding: 18px;
 }
 
+.today-panel,
+.import-panel,
 .controls-panel,
 .history-panel {
   display: flex;
@@ -193,6 +195,18 @@ button:focus-visible {
   padding: 0 14px;
 }
 
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  border-radius: 6px;
+  background: #ecfdf5;
+  color: #0f766e;
+  font-weight: 800;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
 .kakao-button {
   background: var(--kakao);
   color: #1f2933;
@@ -264,6 +278,27 @@ button:focus-visible {
 .meta {
   color: var(--muted);
   font-size: 13px;
+}
+
+.today-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.worker-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.worker-group h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.today-meta {
+  margin-top: 12px;
 }
 
 .table-wrap {
@@ -398,7 +433,8 @@ button:focus-visible {
 
 @media (max-width: 920px) {
   .workspace,
-  .two-columns {
+  .two-columns,
+  .today-grid {
     grid-template-columns: 1fr;
   }
 }
