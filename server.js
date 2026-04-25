@@ -476,7 +476,7 @@ async function serveStatic(req, res, pathname) {
     const type = MIME_TYPES[path.extname(requestedPath)] || "application/octet-stream";
     res.writeHead(200, {
       "Content-Type": type,
-      "Cache-Control": type.includes("html") ? "no-store" : "public, max-age=3600",
+      "Cache-Control": "no-store",
     });
     if (req.method !== "HEAD") {
       res.end(file);
