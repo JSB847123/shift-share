@@ -710,6 +710,7 @@ function sendXlsxTemplate(res) {
   res.writeHead(200, {
     "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "Content-Disposition": 'attachment; filename="shift-template.xlsx"',
+    "Content-Length": buffer.length,
     "Cache-Control": "no-store",
   });
   res.end(buffer);

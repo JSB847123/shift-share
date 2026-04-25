@@ -18,6 +18,7 @@ const els = {
   kakaoShareButton: document.querySelector("#kakaoShareButton"),
   todayDateText: document.querySelector("#todayDateText"),
   todayShift: document.querySelector("#todayShift"),
+  templateDownloadButton: document.querySelector("#templateDownloadButton"),
   importForm: document.querySelector("#importForm"),
   importChangedByInput: document.querySelector("#importChangedByInput"),
   importReasonInput: document.querySelector("#importReasonInput"),
@@ -53,6 +54,7 @@ async function init() {
 function bindEvents() {
   els.refreshButton.addEventListener("click", reloadAll);
   els.kakaoShareButton.addEventListener("click", shareToKakao);
+  els.templateDownloadButton.addEventListener("click", downloadTemplate);
   els.importForm.addEventListener("submit", importXlsx);
   els.clearMonthButton.addEventListener("click", async () => {
     state.month = "";
@@ -160,6 +162,28 @@ async function importXlsx(event) {
     await reloadAll();
   } catch (error) {
     handleApiError(error, "xlsx 등록에 실패했습니다.");
+  }
+}
+
+async function downloadTemplate() {
+  try {
+    const response = await fetch("/api/shifts-template.xlsx", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("양식 파일을 내려받지 못했습니다.");
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "shift-template.xlsx";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("양식 다운로드를 시작했습니다.", "success");
+  } catch (error) {
+    setStatus(error.message || "양식 다운로드에 실패했습니다.", "error");
   }
 }
 
