@@ -328,6 +328,19 @@ button:focus-visible {
   margin-top: 12px;
 }
 
+.range-filter-form {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.range-filter-form h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
 .kakao-button {
   background: var(--kakao);
   color: #1f2933;

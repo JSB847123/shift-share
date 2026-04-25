@@ -1,8 +1,10 @@
 const state = {
   date: getInitialDate(),
   today: todayString(),
-  month: "",
   theme: getInitialTheme(),
+  rangeStart: "",
+  rangeEnd: "",
+  allShifts: [],
   shifts: [],
   shift: null,
   todayShift: null,
@@ -35,6 +37,10 @@ const els = {
   importChangedByInput: document.querySelector("#importChangedByInput"),
   importReasonInput: document.querySelector("#importReasonInput"),
   xlsxInput: document.querySelector("#xlsxInput"),
+  rangeFilterForm: document.querySelector("#rangeFilterForm"),
+  rangeStartInput: document.querySelector("#rangeStartInput"),
+  rangeEndInput: document.querySelector("#rangeEndInput"),
+  clearRangeButton: document.querySelector("#clearRangeButton"),
   listMeta: document.querySelector("#listMeta"),
   shiftList: document.querySelector("#shiftList"),
   selectedDateText: document.querySelector("#selectedDateText"),
@@ -81,6 +87,8 @@ function bindEvents() {
   els.copyTemplateUrlButton.addEventListener("click", copyTemplateUrl);
   els.copyTemplatePathButton.addEventListener("click", copyTemplatePath);
   els.importForm.addEventListener("submit", importXlsx);
+  els.rangeFilterForm.addEventListener("submit", applyRangeFilter);
+  els.clearRangeButton.addEventListener("click", clearRangeFilter);
 
   els.editForm.addEventListener("submit", saveSchedule);
   els.closeEditButton.addEventListener("click", closeEditDialog);
@@ -113,13 +121,59 @@ async function loadConfig() {
 
 async function loadShifts() {
   try {
-    const query = state.month ? `?month=${encodeURIComponent(state.month)}` : "";
-    const data = await api(`/api/shifts${query}`);
-    state.shifts = data.shifts || [];
-    renderShiftList();
+    const data = await api("/api/shifts");
+    state.allShifts = data.shifts || [];
+    applyShiftFilters();
   } catch (error) {
     setStatus(error.message || "근무표 목록 조회에 실패했습니다.", "error");
   }
+}
+
+function applyRangeFilter(event) {
+  event.preventDefault();
+
+  const start = normalizeDateInput(els.rangeStartInput.value);
+  const end = normalizeDateInput(els.rangeEndInput.value);
+
+  if (els.rangeStartInput.value.trim() && !start) {
+    setStatus("시작일은 YYYY-MM-DD 형식으로 입력해주세요.", "error");
+    return;
+  }
+
+  if (els.rangeEndInput.value.trim() && !end) {
+    setStatus("종료일은 YYYY-MM-DD 형식으로 입력해주세요.", "error");
+    return;
+  }
+
+  if (start && end && start > end) {
+    setStatus("시작일은 종료일보다 늦을 수 없습니다.", "error");
+    return;
+  }
+
+  state.rangeStart = start;
+  state.rangeEnd = end;
+  els.rangeStartInput.value = start;
+  els.rangeEndInput.value = end;
+  applyShiftFilters();
+  setStatus(getRangeStatusMessage(), "success");
+}
+
+function clearRangeFilter() {
+  state.rangeStart = "";
+  state.rangeEnd = "";
+  els.rangeStartInput.value = "";
+  els.rangeEndInput.value = "";
+  applyShiftFilters();
+  setStatus("전체 날짜별 근무자를 표시합니다.", "info");
+}
+
+function applyShiftFilters() {
+  state.shifts = state.allShifts.filter((shift) => {
+    if (state.rangeStart && shift.date < state.rangeStart) return false;
+    if (state.rangeEnd && shift.date > state.rangeEnd) return false;
+    return true;
+  });
+  renderShiftList();
 }
 
 async function loadShift(date) {
@@ -375,10 +429,14 @@ function renderWorkerGroup(title, workers) {
 }
 
 function renderShiftList() {
-  els.listMeta.textContent = state.month ? `${state.month} 표시 중` : "전체 표시 중";
+  els.listMeta.textContent = getRangeLabel();
 
   if (!state.shifts.length) {
-    els.shiftList.innerHTML = `<div class="empty-state">등록된 근무표가 없습니다. 달력에서 날짜를 눌러 등록하세요.</div>`;
+    const message =
+      state.rangeStart || state.rangeEnd
+        ? "선택한 기간에 등록된 근무표가 없습니다."
+        : "등록된 근무표가 없습니다. 달력에서 날짜를 눌러 등록하세요.";
+    els.shiftList.innerHTML = `<div class="empty-state">${message}</div>`;
     return;
   }
 
@@ -690,7 +748,47 @@ function getStoredActor() {
 }
 
 function getShiftFromList(date) {
-  return state.shifts.find((shift) => shift.date === date) || null;
+  return state.allShifts.find((shift) => shift.date === date) || null;
+}
+
+function getRangeLabel() {
+  if (state.rangeStart && state.rangeEnd) {
+    return `${state.rangeStart}부터 ${state.rangeEnd}까지`;
+  }
+  if (state.rangeStart) {
+    return `${state.rangeStart}부터`;
+  }
+  if (state.rangeEnd) {
+    return `${state.rangeEnd}까지`;
+  }
+  return "전체 표시 중";
+}
+
+function getRangeStatusMessage() {
+  if (!state.rangeStart && !state.rangeEnd) {
+    return "전체 날짜별 근무자를 표시합니다.";
+  }
+  return `${getRangeLabel()} 날짜별 근무자를 표시합니다.`;
+}
+
+function normalizeDateInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return "";
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const parsed = new Date(year, month - 1, day);
+
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
+    return "";
+  }
+
+  return `${yearText}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function normalizeInputName(value) {
