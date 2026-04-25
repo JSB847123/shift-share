@@ -167,43 +167,7 @@ async function importXlsx(event) {
 
 async function downloadTemplate() {
   const url = `/api/shifts-template.xlsx?t=${Date.now()}`;
-
-  if ("showSaveFilePicker" in window) {
-    try {
-      const fileHandle = await window.showSaveFilePicker({
-        suggestedName: "shift-template.xlsx",
-        types: [
-          {
-            description: "Excel workbook",
-            accept: {
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-            },
-          },
-        ],
-      });
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("양식 파일을 내려받지 못했습니다.");
-      }
-      const writable = await fileHandle.createWritable();
-      await writable.write(await response.blob());
-      await writable.close();
-      setStatus("양식 파일을 저장했습니다.", "success");
-      return;
-    } catch (error) {
-      if (error.name === "AbortError") {
-        setStatus("양식 다운로드를 취소했습니다.", "warning");
-        return;
-      }
-      setStatus(error.message || "양식 다운로드에 실패했습니다.", "error");
-      return;
-    }
-  }
-
-  const opened = window.open(url, "_blank", "noopener");
-  if (!opened) {
-    window.location.assign(url);
-  }
+  window.location.assign(url);
 }
 
 async function openUndoDialog(date) {
