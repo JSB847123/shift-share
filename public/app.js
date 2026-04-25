@@ -19,6 +19,9 @@ const els = {
   todayDateText: document.querySelector("#todayDateText"),
   todayShift: document.querySelector("#todayShift"),
   templateDownloadButton: document.querySelector("#templateDownloadButton"),
+  downloadHelp: document.querySelector("#downloadHelp"),
+  templateDirectLink: document.querySelector("#templateDirectLink"),
+  copyTemplateUrlButton: document.querySelector("#copyTemplateUrlButton"),
   importForm: document.querySelector("#importForm"),
   importChangedByInput: document.querySelector("#importChangedByInput"),
   importReasonInput: document.querySelector("#importReasonInput"),
@@ -55,6 +58,7 @@ function bindEvents() {
   els.refreshButton.addEventListener("click", reloadAll);
   els.kakaoShareButton.addEventListener("click", shareToKakao);
   els.templateDownloadButton.addEventListener("click", downloadTemplate);
+  els.copyTemplateUrlButton.addEventListener("click", copyTemplateUrl);
   els.importForm.addEventListener("submit", importXlsx);
   els.clearMonthButton.addEventListener("click", async () => {
     state.month = "";
@@ -167,7 +171,28 @@ async function importXlsx(event) {
 
 async function downloadTemplate() {
   const url = `/api/shifts-template.xlsx?t=${Date.now()}`;
-  window.location.assign(url);
+  showDownloadHelp();
+  setStatus("양식 다운로드 요청을 보냈습니다.", "info");
+  setTimeout(() => {
+    window.location.assign(url);
+  }, 80);
+}
+
+async function copyTemplateUrl() {
+  const url = new URL("/api/shifts-template.xlsx", window.location.origin).href;
+  try {
+    await navigator.clipboard.writeText(url);
+    setStatus("양식 다운로드 주소를 복사했습니다.", "success");
+  } catch {
+    showDownloadHelp();
+    setStatus(url, "info");
+  }
+}
+
+function showDownloadHelp() {
+  const url = new URL("/api/shifts-template.xlsx", window.location.origin).href;
+  els.templateDirectLink.href = url;
+  els.downloadHelp.hidden = false;
 }
 
 async function openUndoDialog(date) {
@@ -356,19 +381,19 @@ function renderHistoryItem(entry) {
 
 function shareToKakao() {
   try {
+    const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
+    const text = buildShareText(shareUrl);
+
     if (!state.config.kakaoJsKey) {
-      setStatus("카카오 JavaScript 키가 설정되지 않았습니다.", "error");
+      copyShareFallback(`${text}\n${shareUrl}`);
       return;
     }
 
     initKakao();
     if (!window.Kakao || !Kakao.isInitialized()) {
-      setStatus("카카오 SDK가 초기화되지 않았습니다.", "error");
+      copyShareFallback(`${text}\n${shareUrl}`);
       return;
     }
-
-    const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
-    const text = buildShareText();
 
     Kakao.Share.sendDefault({
       objectType: "text",
@@ -381,6 +406,24 @@ function shareToKakao() {
     });
   } catch (error) {
     setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
+  }
+}
+
+async function copyShareFallback(text) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "근무표 안내", text });
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus("카카오 앱 키가 없어 공유 내용을 복사했습니다. 카카오톡에 붙여넣어 보내주세요.", "warning");
+  } catch {
+    setStatus("카카오 앱 키가 없어 공식 카카오톡 공유를 사용할 수 없습니다.", "warning");
   }
 }
 
