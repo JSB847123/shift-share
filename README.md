@@ -20,15 +20,35 @@ npm start
 - `KAKAO_JS_KEY`: 카카오 JavaScript SDK 초기화에 사용하는 JavaScript 키입니다.
 - `NEXT_PUBLIC_KAKAO_JS_KEY`: Next.js식 이름을 쓰고 싶을 때의 대체 키입니다.
 - `APP_BASE_URL`: 카카오톡 공유 링크에 사용할 외부 접속 URL입니다.
+- `DATABASE_URL`: Supabase, Neon, Vercel Marketplace Postgres 같은 외부 DB 연결 주소입니다.
+- `DATABASE_SSL`: 외부 DB SSL 설정입니다. Supabase/Neon/Vercel 배포에서는 `require`를 권장합니다.
+- `DATABASE_POOL_MAX`: Postgres 연결 풀 최대 개수입니다. 기본값은 `5`입니다.
 
 ## 데이터 저장
 
-- 근무표와 변경 이력은 `data/shifts.json`에 저장됩니다.
+- `DATABASE_URL`이 있으면 근무표와 변경 이력은 Postgres DB에 저장됩니다.
+- `DATABASE_URL`이 없으면 로컬 개발용으로 `data/shifts.json`에 저장됩니다.
 - 근무표는 xlsx 양식을 내려받아 작성한 뒤 업로드해서 등록합니다.
 - 같은 날짜의 세무서 2칸, 구청 신고창구 2칸 구조로 저장됩니다.
 - 근무자 칸은 비워서 저장할 수 있습니다.
 - 같은 날짜 중복 배정은 저장되지 않습니다.
 - 저장과 되돌리기는 `revision`으로 동시 수정 충돌을 검사합니다.
+
+Postgres 테이블은 서버가 시작된 뒤 첫 API 요청에서 자동 생성합니다.
+
+## Vercel 배포
+
+1. Vercel 프로젝트의 Environment Variables에 아래 값을 추가합니다.
+
+```text
+KAKAO_JS_KEY=카카오 JavaScript 키
+APP_BASE_URL=https://배포된-vercel-주소
+DATABASE_URL=Postgres 연결 주소
+DATABASE_SSL=require
+```
+
+2. 환경변수 저장 후 Redeploy합니다.
+3. 카카오디벨로퍼스에서 JavaScript SDK 도메인과 제품 링크 관리의 Web domain에 Vercel 주소를 등록합니다.
 
 ## 카카오 디벨로퍼스 설정
 

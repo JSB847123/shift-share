@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/[...path].js": {
+      "includeFiles": "public/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/shifts/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

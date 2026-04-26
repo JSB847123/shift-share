@@ -41,7 +41,9 @@ const MIME_TYPES = {
 
 let writeQueue = Promise.resolve();
 
-const server = http.createServer(async (req, res) => {
+const dataStore = createDataStore();
+
+async function appHandler(req, res) {
   try {
     const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
@@ -54,11 +56,17 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     handleUnexpectedError(res, error);
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Shift schedule app running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  const server = http.createServer(appHandler);
+  server.listen(PORT, () => {
+    console.log(`Shift schedule app running at http://localhost:${PORT}`);
+    console.log(`Data store: ${dataStore.name}`);
+  });
+}
+
+module.exports = appHandler;
 
 async function handleApi(req, res, parsedUrl) {
   const pathname = parsedUrl.pathname;
@@ -154,29 +162,20 @@ async function listShifts(res, month) {
     throw new HttpError(400, "월 형식이 올바르지 않습니다. YYYY-MM 형식을 사용해주세요.");
   }
 
-  const db = await readDb();
-  const shifts = Object.values(db.shifts)
-    .filter((shift) => !month || shift.date.startsWith(month))
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map(toPublicShift);
+  const shifts = (await dataStore.listShifts(month)).map(toPublicShift);
 
   sendJson(res, 200, { shifts });
 }
 
 async function getShift(res, date) {
-  const db = await readDb();
-  const shift = db.shifts[date] ? toPublicShift(db.shifts[date]) : null;
-  const history = db.history
-    .filter((entry) => entry.shiftDate === date)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const { shift, history } = await dataStore.getShiftWithHistory(date);
 
-  sendJson(res, 200, { shift, history });
+  sendJson(res, 200, { shift: shift ? toPublicShift(shift) : null, history });
 }
 
 async function saveShift(res, date, body) {
-  const result = await withDbLock(async () => {
-    const db = await readDb();
-    const existing = db.shifts[date] || null;
+  const result = await dataStore.transaction(async (repo) => {
+    const existing = await repo.getShift(date, { forUpdate: true });
     const actor = normalizeWorkerName(body.changedBy) || "사용자";
     const reason = normalizeOptionalText(body.reason);
 
@@ -200,8 +199,13 @@ async function saveShift(res, date, body) {
       revision: existing ? existing.revision + 1 : 1,
     };
 
-    db.shifts[date] = nextShift;
-    db.history.push({
+    if (existing) {
+      await repo.updateShift(nextShift);
+    } else {
+      await repo.insertShift(nextShift);
+    }
+
+    await repo.insertHistory({
       id: randomUUID(),
       shiftDate: date,
       action: existing ? "update" : "create",
@@ -215,17 +219,15 @@ async function saveShift(res, date, body) {
       createdAt: now,
     });
 
-    await writeDb(db);
-    return { shift: toPublicShift(nextShift), history: db.history.filter((entry) => entry.shiftDate === date) };
+    return { shift: toPublicShift(nextShift), history: await repo.listHistory(date) };
   });
 
   sendJson(res, 200, result);
 }
 
 async function undoShift(res, date, body) {
-  const result = await withDbLock(async () => {
-    const db = await readDb();
-    const existing = db.shifts[date];
+  const result = await dataStore.transaction(async (repo) => {
+    const existing = await repo.getShift(date, { forUpdate: true });
     if (!existing) {
       throw new HttpError(404, "되돌릴 근무표가 없습니다.");
     }
@@ -234,9 +236,7 @@ async function undoShift(res, date, body) {
 
     const actor = normalizeWorkerName(body.changedBy) || "사용자";
     const reason = normalizeOptionalText(body.reason) || "직전 변경 되돌리기";
-    const latestEntry = [...db.history]
-      .filter((entry) => entry.shiftDate === date)
-      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    const latestEntry = (await repo.listHistory(date, { limit: 1 }))[0];
 
     if (!latestEntry) {
       throw new HttpError(400, "되돌릴 변경 이력이 없습니다.");
@@ -257,12 +257,12 @@ async function undoShift(res, date, body) {
         revision: existing.revision + 1,
       };
       assertValidAssignments(nextShift.taxOfficeWorkers, nextShift.districtOfficeWorkers);
-      db.shifts[date] = nextShift;
+      await repo.updateShift(nextShift);
     } else {
-      delete db.shifts[date];
+      await repo.deleteShift(date);
     }
 
-    db.history.push({
+    await repo.insertHistory({
       id: randomUUID(),
       shiftDate: date,
       action: "undo",
@@ -276,10 +276,9 @@ async function undoShift(res, date, body) {
       createdAt: now,
     });
 
-    await writeDb(db);
     return {
       shift: nextShift ? toPublicShift(nextShift) : null,
-      history: db.history.filter((entry) => entry.shiftDate === date),
+      history: await repo.listHistory(date),
     };
   });
 
@@ -287,9 +286,8 @@ async function undoShift(res, date, body) {
 }
 
 async function replaceWorker(res, date, body) {
-  const result = await withDbLock(async () => {
-    const db = await readDb();
-    const existing = db.shifts[date];
+  const result = await dataStore.transaction(async (repo) => {
+    const existing = await repo.getShift(date, { forUpdate: true });
     if (!existing) {
       throw new HttpError(404, "해당 날짜에 등록된 근무표가 없습니다.");
     }
@@ -317,8 +315,8 @@ async function replaceWorker(res, date, body) {
     nextShift.updatedBy = actor;
     nextShift.revision = existing.revision + 1;
 
-    db.shifts[date] = nextShift;
-    db.history.push({
+    await repo.updateShift(nextShift);
+    await repo.insertHistory({
       id: randomUUID(),
       shiftDate: date,
       action: "replace",
@@ -332,10 +330,9 @@ async function replaceWorker(res, date, body) {
       createdAt: now,
     });
 
-    await writeDb(db);
     return {
       shift: toPublicShift(nextShift),
-      history: db.history.filter((entry) => entry.shiftDate === date),
+      history: await repo.listHistory(date),
     };
   });
 
@@ -343,9 +340,8 @@ async function replaceWorker(res, date, body) {
 }
 
 async function swapWorkers(res, date, body) {
-  const result = await withDbLock(async () => {
-    const db = await readDb();
-    const existing = db.shifts[date];
+  const result = await dataStore.transaction(async (repo) => {
+    const existing = await repo.getShift(date, { forUpdate: true });
     if (!existing) {
       throw new HttpError(404, "해당 날짜에 등록된 근무표가 없습니다.");
     }
@@ -377,8 +373,8 @@ async function swapWorkers(res, date, body) {
     nextShift.updatedBy = actor;
     nextShift.revision = existing.revision + 1;
 
-    db.shifts[date] = nextShift;
-    db.history.push({
+    await repo.updateShift(nextShift);
+    await repo.insertHistory({
       id: randomUUID(),
       shiftDate: date,
       action: "swap",
@@ -392,10 +388,9 @@ async function swapWorkers(res, date, body) {
       createdAt: now,
     });
 
-    await writeDb(db);
     return {
       shift: toPublicShift(nextShift),
-      history: db.history.filter((entry) => entry.shiftDate === date),
+      history: await repo.listHistory(date),
     };
   });
 
@@ -412,8 +407,7 @@ async function importShiftsFromXlsx(res, body) {
     throw new HttpError(400, "엑셀 파일에서 등록할 근무표를 찾지 못했습니다.");
   }
 
-  const result = await withDbLock(async () => {
-    const db = await readDb();
+  const result = await dataStore.transaction(async (repo) => {
     const now = new Date().toISOString();
     const imported = [];
 
@@ -423,7 +417,7 @@ async function importShiftsFromXlsx(res, body) {
       const districtOfficeWorkers = normalizeWorkerPair(row.districtOfficeWorkers, "구청 신고창구");
       assertValidAssignments(taxOfficeWorkers, districtOfficeWorkers);
 
-      const existing = db.shifts[row.date] || null;
+      const existing = await repo.getShift(row.date, { forUpdate: true });
       const nextShift = {
         date: row.date,
         taxOfficeWorkers,
@@ -433,8 +427,13 @@ async function importShiftsFromXlsx(res, body) {
         revision: existing ? existing.revision + 1 : 1,
       };
 
-      db.shifts[row.date] = nextShift;
-      db.history.push({
+      if (existing) {
+        await repo.updateShift(nextShift);
+      } else {
+        await repo.insertShift(nextShift);
+      }
+
+      await repo.insertHistory({
         id: randomUUID(),
         shiftDate: row.date,
         action: existing ? "xlsx-update" : "xlsx-create",
@@ -450,7 +449,6 @@ async function importShiftsFromXlsx(res, body) {
       imported.push(toPublicShift(nextShift));
     }
 
-    await writeDb(db);
     return {
       imported,
       count: imported.length,
@@ -516,6 +514,365 @@ async function readRequestJson(req) {
   } catch {
     throw new HttpError(400, "JSON 형식이 올바르지 않습니다.");
   }
+}
+
+function createDataStore() {
+  if (process.env.DATABASE_URL) {
+    return createPostgresStore(process.env.DATABASE_URL);
+  }
+
+  return createFileStore();
+}
+
+function createFileStore() {
+  return {
+    name: "file",
+    async listShifts(month) {
+      const db = await readDb();
+      return Object.values(db.shifts)
+        .filter((shift) => !month || shift.date.startsWith(month))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(cloneShift);
+    },
+    async getShiftWithHistory(date) {
+      const db = await readDb();
+      return {
+        shift: db.shifts[date] ? cloneShift(db.shifts[date]) : null,
+        history: sortHistory(db.history.filter((entry) => entry.shiftDate === date)),
+      };
+    },
+    transaction(task) {
+      return withDbLock(async () => {
+        const db = await readDb();
+        const repo = createFileRepo(db);
+        const result = await task(repo);
+        await writeDb(db);
+        return result;
+      });
+    },
+  };
+}
+
+function createFileRepo(db) {
+  return {
+    async getShift(date) {
+      return db.shifts[date] ? cloneShift(db.shifts[date]) : null;
+    },
+    async listHistory(date, options = {}) {
+      return applyHistoryLimit(sortHistory(db.history.filter((entry) => entry.shiftDate === date)), options.limit);
+    },
+    async insertShift(shift) {
+      if (db.shifts[shift.date]) {
+        throw new HttpError(409, "이미 등록된 날짜입니다. 최신 근무표를 불러온 뒤 수정해주세요.");
+      }
+      db.shifts[shift.date] = cloneShift(shift);
+    },
+    async updateShift(shift) {
+      if (!db.shifts[shift.date]) {
+        throw new HttpError(409, "근무표가 다른 사람에 의해 변경되었습니다. 새로고침 후 다시 시도해주세요.");
+      }
+      db.shifts[shift.date] = cloneShift(shift);
+    },
+    async deleteShift(date) {
+      delete db.shifts[date];
+    },
+    async insertHistory(entry) {
+      db.history.push(cloneHistoryEntry(entry));
+    },
+  };
+}
+
+function createPostgresStore(connectionString) {
+  let Pool;
+  try {
+    ({ Pool } = require("pg"));
+  } catch {
+    throw new Error("DATABASE_URL을 사용하려면 pg 패키지가 필요합니다. npm install을 실행해주세요.");
+  }
+
+  const pool = new Pool({
+    connectionString,
+    ssl: getPostgresSslConfig(connectionString),
+    max: Number(process.env.DATABASE_POOL_MAX || 5),
+  });
+  let schemaPromise = null;
+
+  async function ensureSchema() {
+    if (!schemaPromise) {
+      schemaPromise = pool.query(`
+        create table if not exists shifts (
+          date text primary key check (date ~ '^\\d{4}-\\d{2}-\\d{2}$'),
+          tax_office_workers jsonb not null,
+          district_office_workers jsonb not null,
+          revision integer not null default 1,
+          updated_by text,
+          updated_at timestamptz not null default now()
+        );
+
+        create table if not exists shift_histories (
+          id uuid primary key,
+          shift_date text not null check (shift_date ~ '^\\d{4}-\\d{2}-\\d{2}$'),
+          action text not null,
+          location text not null,
+          before_workers jsonb,
+          after_workers jsonb,
+          before_schedule jsonb,
+          after_schedule jsonb,
+          changed_by text,
+          reason text,
+          created_at timestamptz not null default now()
+        );
+
+        create index if not exists idx_shift_histories_shift_date_created_at
+          on shift_histories (shift_date, created_at desc);
+      `);
+    }
+
+    await schemaPromise;
+  }
+
+  return {
+    name: "postgres",
+    async listShifts(month) {
+      await ensureSchema();
+      const result = month
+        ? await pool.query(
+            `select date, tax_office_workers, district_office_workers, revision, updated_by, updated_at
+             from shifts
+             where date like $1
+             order by date asc`,
+            [`${month}-%`]
+          )
+        : await pool.query(
+            `select date, tax_office_workers, district_office_workers, revision, updated_by, updated_at
+             from shifts
+             order by date asc`
+          );
+      return result.rows.map(rowToShift);
+    },
+    async getShiftWithHistory(date) {
+      await ensureSchema();
+      const [shiftResult, historyResult] = await Promise.all([
+        pool.query(
+          `select date, tax_office_workers, district_office_workers, revision, updated_by, updated_at
+           from shifts
+           where date = $1`,
+          [date]
+        ),
+        pool.query(
+          `select id, shift_date, action, location, before_workers, after_workers, before_schedule,
+                  after_schedule, changed_by, reason, created_at
+           from shift_histories
+           where shift_date = $1
+           order by created_at desc, id desc`,
+          [date]
+        ),
+      ]);
+
+      return {
+        shift: shiftResult.rows[0] ? rowToShift(shiftResult.rows[0]) : null,
+        history: historyResult.rows.map(rowToHistoryEntry),
+      };
+    },
+    async transaction(task) {
+      await ensureSchema();
+      const client = await pool.connect();
+
+      try {
+        await client.query("begin");
+        const result = await task(createPostgresRepo(client));
+        await client.query("commit");
+        return result;
+      } catch (error) {
+        await client.query("rollback").catch(() => {});
+        if (error && error.code === "23505") {
+          throw new HttpError(409, "이미 등록된 날짜입니다. 최신 근무표를 불러온 뒤 수정해주세요.");
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+  };
+}
+
+function createPostgresRepo(client) {
+  return {
+    async getShift(date, options = {}) {
+      const result = await client.query(
+        `select date, tax_office_workers, district_office_workers, revision, updated_by, updated_at
+         from shifts
+         where date = $1${options.forUpdate ? " for update" : ""}`,
+        [date]
+      );
+      return result.rows[0] ? rowToShift(result.rows[0]) : null;
+    },
+    async listHistory(date, options = {}) {
+      const limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : null;
+      const result = await client.query(
+        `select id, shift_date, action, location, before_workers, after_workers, before_schedule,
+                after_schedule, changed_by, reason, created_at
+         from shift_histories
+         where shift_date = $1
+         order by created_at desc, id desc${limit ? ` limit ${limit}` : ""}`,
+        [date]
+      );
+      return result.rows.map(rowToHistoryEntry);
+    },
+    async insertShift(shift) {
+      await client.query(
+        `insert into shifts
+          (date, tax_office_workers, district_office_workers, revision, updated_by, updated_at)
+         values ($1, $2::jsonb, $3::jsonb, $4, $5, $6::timestamptz)`,
+        [
+          shift.date,
+          JSON.stringify(shift.taxOfficeWorkers),
+          JSON.stringify(shift.districtOfficeWorkers),
+          shift.revision,
+          shift.updatedBy,
+          shift.updatedAt,
+        ]
+      );
+    },
+    async updateShift(shift) {
+      const result = await client.query(
+        `update shifts
+         set tax_office_workers = $2::jsonb,
+             district_office_workers = $3::jsonb,
+             revision = $4,
+             updated_by = $5,
+             updated_at = $6::timestamptz
+         where date = $1`,
+        [
+          shift.date,
+          JSON.stringify(shift.taxOfficeWorkers),
+          JSON.stringify(shift.districtOfficeWorkers),
+          shift.revision,
+          shift.updatedBy,
+          shift.updatedAt,
+        ]
+      );
+
+      if (result.rowCount === 0) {
+        throw new HttpError(409, "근무표가 다른 사람에 의해 변경되었습니다. 새로고침 후 다시 시도해주세요.");
+      }
+    },
+    async deleteShift(date) {
+      await client.query("delete from shifts where date = $1", [date]);
+    },
+    async insertHistory(entry) {
+      await client.query(
+        `insert into shift_histories
+          (id, shift_date, action, location, before_workers, after_workers, before_schedule,
+           after_schedule, changed_by, reason, created_at)
+         values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11::timestamptz)`,
+        [
+          entry.id,
+          entry.shiftDate,
+          entry.action,
+          entry.location,
+          jsonParam(entry.beforeWorkers),
+          jsonParam(entry.afterWorkers),
+          jsonParam(entry.beforeSchedule),
+          jsonParam(entry.afterSchedule),
+          entry.changedBy,
+          entry.reason,
+          entry.createdAt,
+        ]
+      );
+    },
+  };
+}
+
+function getPostgresSslConfig(connectionString) {
+  const sslMode = process.env.DATABASE_SSL || getConnectionStringParam(connectionString, "sslmode");
+  if (sslMode === "disable") {
+    return false;
+  }
+
+  if (sslMode === "require" || process.env.NODE_ENV === "production" || isRemoteDatabase(connectionString)) {
+    return { rejectUnauthorized: false };
+  }
+
+  return false;
+}
+
+function getConnectionStringParam(connectionString, name) {
+  try {
+    return new URL(connectionString).searchParams.get(name) || "";
+  } catch {
+    return "";
+  }
+}
+
+function isRemoteDatabase(connectionString) {
+  try {
+    const host = new URL(connectionString).hostname;
+    return host && !["localhost", "127.0.0.1", "::1"].includes(host);
+  } catch {
+    return true;
+  }
+}
+
+function rowToShift(row) {
+  return {
+    date: row.date,
+    taxOfficeWorkers: normalizeStoredWorkers(row.tax_office_workers),
+    districtOfficeWorkers: normalizeStoredWorkers(row.district_office_workers),
+    updatedAt: toIsoString(row.updated_at),
+    updatedBy: row.updated_by || "",
+    revision: Number(row.revision || 1),
+  };
+}
+
+function rowToHistoryEntry(row) {
+  return {
+    id: row.id,
+    shiftDate: row.shift_date,
+    action: row.action,
+    location: row.location,
+    beforeWorkers: row.before_workers ?? null,
+    afterWorkers: row.after_workers ?? null,
+    beforeSchedule: row.before_schedule ?? null,
+    afterSchedule: row.after_schedule ?? null,
+    changedBy: row.changed_by || "",
+    reason: row.reason || "",
+    createdAt: toIsoString(row.created_at),
+  };
+}
+
+function normalizeStoredWorkers(value) {
+  const parsed = typeof value === "string" ? JSON.parse(value) : value;
+  return Array.isArray(parsed) ? parsed.map(normalizeWorkerName) : [];
+}
+
+function jsonParam(value) {
+  return value === undefined || value === null ? null : JSON.stringify(value);
+}
+
+function toIsoString(value) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+}
+
+function sortHistory(history) {
+  return [...history]
+    .map(cloneHistoryEntry)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+function applyHistoryLimit(history, limit) {
+  return Number.isInteger(limit) && limit > 0 ? history.slice(0, limit) : history;
+}
+
+function cloneHistoryEntry(entry) {
+  return deepClone(entry);
+}
+
+function deepClone(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
 async function readDb() {
