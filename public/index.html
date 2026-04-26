@@ -79,16 +79,34 @@
             <div class="input-grid two-columns">
               <label class="field">
                 <span>시작일</span>
-                <input id="rangeStartInput" type="text" inputmode="numeric" autocomplete="off" placeholder="2026-05-07" />
+                <div class="date-input-wrap">
+                  <input id="rangeStartInput" type="text" inputmode="numeric" autocomplete="off" placeholder="2026-05-07" />
+                  <button class="date-picker-button" type="button" id="rangeStartCalendarButton" aria-label="시작일 달력 열기">
+                    <span class="calendar-icon" aria-hidden="true"></span>
+                  </button>
+                </div>
               </label>
               <label class="field">
                 <span>종료일</span>
-                <input id="rangeEndInput" type="text" inputmode="numeric" autocomplete="off" placeholder="2026-05-10" />
+                <div class="date-input-wrap">
+                  <input id="rangeEndInput" type="text" inputmode="numeric" autocomplete="off" placeholder="2026-05-10" />
+                  <button class="date-picker-button" type="button" id="rangeEndCalendarButton" aria-label="종료일 달력 열기">
+                    <span class="calendar-icon" aria-hidden="true"></span>
+                  </button>
+                </div>
               </label>
             </div>
             <div class="button-row">
               <button class="primary-button" type="submit">기간 조회</button>
               <button class="secondary-button" type="button" id="clearRangeButton">전체 보기</button>
+            </div>
+            <div class="range-calendar-popover" id="rangeCalendarPopover" hidden>
+              <div class="range-calendar-heading">
+                <button class="secondary-button small" type="button" id="prevRangeMonthButton" aria-label="이전 달">‹</button>
+                <strong id="rangeCalendarMonthLabel">2026년 5월</strong>
+                <button class="secondary-button small" type="button" id="nextRangeMonthButton" aria-label="다음 달">›</button>
+              </div>
+              <div class="range-calendar-grid" id="rangeCalendarGrid"></div>
             </div>
           </form>
         </section>

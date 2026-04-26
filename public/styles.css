@@ -230,6 +230,59 @@ input {
   padding: 9px 11px;
 }
 
+.date-input-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 6px;
+}
+
+.date-input-wrap input {
+  min-width: 0;
+}
+
+.date-picker-button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
+  display: grid;
+  place-items: center;
+}
+
+.date-picker-button:hover {
+  border-color: var(--primary);
+}
+
+.calendar-icon {
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  display: block;
+  position: relative;
+}
+
+.calendar-icon::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 4px;
+  border-top: 2px solid currentColor;
+}
+
+.calendar-icon::after {
+  content: "";
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  left: 4px;
+  top: 9px;
+  background: currentColor;
+  box-shadow: 5px 0 0 currentColor, 0 5px 0 currentColor, 5px 5px 0 currentColor;
+}
+
 input:focus,
 button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.22);
@@ -339,6 +392,68 @@ button:focus-visible {
 .range-filter-form h3 {
   font-size: 16px;
   margin: 0;
+}
+
+.range-calendar-popover {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.range-calendar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.range-calendar-heading strong {
+  font-size: 15px;
+}
+
+.range-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.range-calendar-weekday {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  padding-bottom: 2px;
+}
+
+.range-calendar-weekday:first-child {
+  color: var(--danger);
+}
+
+.range-calendar-weekday:nth-child(7) {
+  color: var(--primary);
+}
+
+.range-calendar-blank {
+  min-height: 34px;
+}
+
+.range-calendar-day {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.range-calendar-day:hover,
+.range-calendar-day.is-selected {
+  border-color: var(--primary);
+  background: var(--selected-bg);
+  color: var(--primary);
 }
 
 .kakao-button {

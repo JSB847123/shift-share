@@ -4,6 +4,8 @@ const state = {
   theme: getInitialTheme(),
   rangeStart: "",
   rangeEnd: "",
+  rangeCalendarTarget: "start",
+  rangeCalendarMonth: "2026-05",
   allShifts: [],
   shifts: [],
   shift: null,
@@ -17,6 +19,7 @@ const state = {
 };
 
 const periodRange = getPeriodRange(state.today);
+const RANGE_CALENDAR_DEFAULT_MONTH = "2026-05";
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const els = {
@@ -40,7 +43,14 @@ const els = {
   rangeFilterForm: document.querySelector("#rangeFilterForm"),
   rangeStartInput: document.querySelector("#rangeStartInput"),
   rangeEndInput: document.querySelector("#rangeEndInput"),
+  rangeStartCalendarButton: document.querySelector("#rangeStartCalendarButton"),
+  rangeEndCalendarButton: document.querySelector("#rangeEndCalendarButton"),
   clearRangeButton: document.querySelector("#clearRangeButton"),
+  rangeCalendarPopover: document.querySelector("#rangeCalendarPopover"),
+  rangeCalendarMonthLabel: document.querySelector("#rangeCalendarMonthLabel"),
+  rangeCalendarGrid: document.querySelector("#rangeCalendarGrid"),
+  prevRangeMonthButton: document.querySelector("#prevRangeMonthButton"),
+  nextRangeMonthButton: document.querySelector("#nextRangeMonthButton"),
   listMeta: document.querySelector("#listMeta"),
   shiftList: document.querySelector("#shiftList"),
   selectedDateText: document.querySelector("#selectedDateText"),
@@ -89,6 +99,12 @@ function bindEvents() {
   els.importForm.addEventListener("submit", importXlsx);
   els.rangeFilterForm.addEventListener("submit", applyRangeFilter);
   els.clearRangeButton.addEventListener("click", clearRangeFilter);
+  els.rangeStartCalendarButton.addEventListener("click", (event) => openRangeCalendar("start", event));
+  els.rangeEndCalendarButton.addEventListener("click", (event) => openRangeCalendar("end", event));
+  els.prevRangeMonthButton.addEventListener("click", () => moveRangeCalendarMonth(-1));
+  els.nextRangeMonthButton.addEventListener("click", () => moveRangeCalendarMonth(1));
+  document.addEventListener("click", closeRangeCalendarOnOutsideClick);
+  document.addEventListener("keydown", closeRangeCalendarOnEscape);
 
   els.editForm.addEventListener("submit", saveSchedule);
   els.closeEditButton.addEventListener("click", closeEditDialog);
@@ -163,6 +179,7 @@ function clearRangeFilter() {
   state.rangeEnd = "";
   els.rangeStartInput.value = "";
   els.rangeEndInput.value = "";
+  closeRangeCalendar();
   applyShiftFilters();
   setStatus("전체 날짜별 근무자를 표시합니다.", "info");
 }
@@ -174,6 +191,83 @@ function applyShiftFilters() {
     return true;
   });
   renderShiftList();
+}
+
+function openRangeCalendar(target, event) {
+  event.stopPropagation();
+  state.rangeCalendarTarget = target;
+
+  const inputDate = normalizeDateInput(getRangeInput(target).value);
+  state.rangeCalendarMonth = inputDate ? inputDate.slice(0, 7) : RANGE_CALENDAR_DEFAULT_MONTH;
+  renderRangeCalendar();
+  els.rangeCalendarPopover.hidden = false;
+}
+
+function closeRangeCalendar() {
+  els.rangeCalendarPopover.hidden = true;
+}
+
+function closeRangeCalendarOnOutsideClick(event) {
+  if (els.rangeCalendarPopover.hidden) return;
+  if (els.rangeCalendarPopover.contains(event.target)) return;
+  if (els.rangeStartCalendarButton.contains(event.target)) return;
+  if (els.rangeEndCalendarButton.contains(event.target)) return;
+  closeRangeCalendar();
+}
+
+function closeRangeCalendarOnEscape(event) {
+  if (event.key === "Escape") {
+    closeRangeCalendar();
+  }
+}
+
+function moveRangeCalendarMonth(offset) {
+  const [year, month] = state.rangeCalendarMonth.split("-").map(Number);
+  const next = new Date(year, month - 1 + offset, 1);
+  state.rangeCalendarMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+  renderRangeCalendar();
+}
+
+function renderRangeCalendar() {
+  const [year, month] = state.rangeCalendarMonth.split("-").map(Number);
+  const monthStart = formatDateValue(new Date(year, month - 1, 1));
+  const monthEnd = formatDateValue(new Date(year, month, 0));
+  const leadingBlankCount = parseLocalDate(monthStart).getDay();
+  const dates = enumerateDates(monthStart, monthEnd);
+  const selectedDate = normalizeDateInput(getRangeInput(state.rangeCalendarTarget).value);
+
+  els.rangeCalendarMonthLabel.textContent = `${year}년 ${month}월`;
+  els.rangeCalendarGrid.innerHTML = `
+    ${WEEKDAY_LABELS.map((label) => `<div class="range-calendar-weekday">${escapeHtml(label)}</div>`).join("")}
+    ${Array.from({ length: leadingBlankCount }, () => `<div class="range-calendar-blank" aria-hidden="true"></div>`).join("")}
+    ${dates.map((date) => renderRangeCalendarDay(date, selectedDate)).join("")}
+  `;
+
+  els.rangeCalendarGrid.querySelectorAll("[data-range-calendar-date]").forEach((button) => {
+    button.addEventListener("click", () => selectRangeCalendarDate(button.dataset.rangeCalendarDate));
+  });
+}
+
+function renderRangeCalendarDay(date, selectedDate) {
+  const [, , day] = date.split("-").map(Number);
+  const selectedClass = date === selectedDate ? " is-selected" : "";
+
+  return `
+    <button class="range-calendar-day${selectedClass}" type="button" data-range-calendar-date="${escapeHtml(date)}">
+      ${day}
+    </button>
+  `;
+}
+
+function selectRangeCalendarDate(date) {
+  const input = getRangeInput(state.rangeCalendarTarget);
+  input.value = date;
+  input.focus();
+  closeRangeCalendar();
+}
+
+function getRangeInput(target) {
+  return target === "end" ? els.rangeEndInput : els.rangeStartInput;
 }
 
 async function loadShift(date) {
