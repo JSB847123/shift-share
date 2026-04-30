@@ -328,44 +328,6 @@ button:focus-visible {
   padding: 0 14px;
 }
 
-.download-help {
-  border: 1px solid var(--download-border);
-  border-radius: 8px;
-  background: var(--download-bg);
-  padding: 10px;
-}
-
-.download-help p {
-  color: var(--download-text);
-  font-weight: 800;
-}
-
-.file-path {
-  margin-top: 8px;
-  border: 1px solid var(--download-border);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text);
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 13px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  padding: 9px 10px;
-}
-
-.download-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.download-actions a {
-  color: var(--primary);
-  font-weight: 900;
-}
-
 .compact-import {
   border-top: 1px solid var(--line);
   padding-top: 10px;
