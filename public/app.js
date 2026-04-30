@@ -680,22 +680,11 @@ function shareToKakao() {
       return;
     }
 
-    const linkObject = { mobileWebUrl: shareUrl, webUrl: shareUrl };
-    const lines = text.split("\n");
-    const title = lines[0] || "근무표 안내";
-    const description = lines.slice(1).join("\n").trim() || "근무표를 확인해주세요.";
-
     Kakao.Share.sendDefault({
-      objectType: "feed",
-      content: {
-        title,
-        description,
-        link: linkObject,
-      },
-      buttons: [
-        { title: "근무표 공유", link: linkObject },
-        { title: "근무표 확인/수정", link: linkObject },
-      ],
+      objectType: "text",
+      text,
+      link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
+      buttonTitle: "근무표 공유",
     });
   } catch (error) {
     setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
@@ -736,7 +725,7 @@ function buildShareText() {
   const shift = state.shift || getShiftFromList(state.date);
 
   if (!shift) {
-    return `[근무표 안내]\n${formatted}\n\n해당 날짜에 등록된 근무표가 없습니다.\n\n근무 변경/확인:\n앱 링크`;
+    return `[근무표 안내]\n${formatted}\n\n해당 날짜에 등록된 근무표가 없습니다.`;
   }
 
   return [
@@ -746,9 +735,6 @@ function buildShareText() {
     `동작세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
     "",
     `구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
-    "",
-    "근무 변경/확인:",
-    "앱 링크",
   ].join("\n");
 }
 
