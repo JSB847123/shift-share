@@ -771,7 +771,11 @@ button:focus-visible {
 
 @media (max-width: 680px) {
   .app-shell {
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .panel {
+    padding: 14px;
   }
 
   .app-header,
@@ -792,8 +796,92 @@ button:focus-visible {
     width: 100%;
   }
 
-  .shift-table {
-    min-width: 540px;
+  .table-wrap {
+    overflow-x: visible;
   }
 
+  .shift-table,
+  .shift-table thead,
+  .shift-table tbody,
+  .shift-table tr,
+  .shift-table th,
+  .shift-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .shift-table {
+    min-width: 0;
+    table-layout: auto;
+  }
+
+  .shift-table thead {
+    display: none;
+  }
+
+  .shift-table tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+  }
+
+  .shift-table tr.is-selected {
+    border-color: var(--primary);
+    background: var(--selected-bg);
+  }
+
+  .shift-table tr.is-selected td {
+    background: transparent;
+  }
+
+  .shift-table td {
+    border: none;
+    padding: 6px 0;
+  }
+
+  .shift-table td:not(:first-child):not(:last-child)::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .row-actions {
+    justify-content: flex-end;
+  }
+
+  #periodCalendar {
+    overflow-x: visible;
+  }
+
+  .period-calendar-grid {
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .period-day,
+  .period-blank {
+    min-height: 76px;
+  }
+
+  .period-day {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .period-date {
+    font-size: 12px;
+  }
+
+  .period-workers {
+    font-size: 11px;
+  }
+
+  .period-weekday {
+    font-size: 11px;
+    padding: 2px 0 4px;
+  }
 }

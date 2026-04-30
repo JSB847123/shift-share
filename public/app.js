@@ -528,16 +528,16 @@ function renderShiftRow(shift) {
 
   return `
     <tr class="${selected}">
-      <td>
+      <td data-label="날짜">
         <button class="date-button" type="button" data-select-date="${escapeHtml(shift.date)}">
           ${escapeHtml(formatKoreanDate(shift.date))}
         </button>
         <p class="meta">수정 ${escapeHtml(formatDateTime(shift.updatedAt))}</p>
         ${warnings}
       </td>
-      <td>${renderWorkerNames(shift.taxOfficeWorkers)}</td>
-      <td>${renderWorkerNames(shift.districtOfficeWorkers)}</td>
-      <td>
+      <td data-label="세무서">${renderWorkerNames(shift.taxOfficeWorkers)}</td>
+      <td data-label="구청 신고창구">${renderWorkerNames(shift.districtOfficeWorkers)}</td>
+      <td data-label="관리">
         <div class="row-actions">
           <button class="primary-button small" type="button" data-edit-date="${escapeHtml(shift.date)}">수정</button>
         </div>
