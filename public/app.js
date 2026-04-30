@@ -956,7 +956,7 @@ function todayString() {
 }
 
 function getInitialTheme() {
-  return localStorage.getItem("shiftScheduleTheme") === "dark" ? "dark" : "light";
+  return localStorage.getItem("shiftScheduleTheme") === "light" ? "light" : "dark";
 }
 
 function getPeriodRange(referenceDate) {
