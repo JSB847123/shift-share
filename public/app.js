@@ -1,9 +1,12 @@
+const INITIAL_TODAY = todayString();
+const INITIAL_RANGE_END = formatDateValue(addDays(parseLocalDate(INITIAL_TODAY), 3));
+
 const state = {
   date: getInitialDate(),
-  today: todayString(),
+  today: INITIAL_TODAY,
   theme: getInitialTheme(),
-  rangeStart: "",
-  rangeEnd: "",
+  rangeStart: INITIAL_TODAY,
+  rangeEnd: INITIAL_RANGE_END,
   rangeCalendarTarget: "start",
   rangeCalendarMonth: "2026-05",
   allShifts: [],
@@ -78,6 +81,9 @@ async function init() {
   applyTheme(state.theme);
   restoreActorNames();
   bindEvents();
+
+  els.rangeStartInput.value = state.rangeStart;
+  els.rangeEndInput.value = state.rangeEnd;
 
   await Promise.all([loadConfig(), reloadAll()]);
   initKakao();
