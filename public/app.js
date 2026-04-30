@@ -664,27 +664,42 @@ function renderHistoryItem(entry) {
   `;
 }
 
+const APP_HOME_URL = "https://shift-share.syn2bloom.me/";
+
 function shareToKakao() {
   try {
     const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
-    const text = buildShareText(shareUrl);
+    const card = buildShareCard();
+    const fallbackText = `${card.title}\n\n${card.description}\n\n${shareUrl}`;
 
     if (!state.config.kakaoJsKey) {
-      copyShareFallback(`${text}\n${shareUrl}`);
+      copyShareFallback(fallbackText);
       return;
     }
 
     initKakao();
     if (!window.Kakao || !Kakao.isInitialized()) {
-      copyShareFallback(`${text}\n${shareUrl}`);
+      copyShareFallback(fallbackText);
       return;
     }
 
     Kakao.Share.sendDefault({
-      objectType: "text",
-      text,
-      link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
-      buttonTitle: "근무표 공유",
+      objectType: "feed",
+      content: {
+        title: card.title,
+        description: card.description,
+        link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
+      },
+      buttons: [
+        {
+          title: "모바일 앱 이동",
+          link: { mobileWebUrl: APP_HOME_URL, webUrl: APP_HOME_URL },
+        },
+        {
+          title: "근무표 공유",
+          link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
+        },
+      ],
     });
   } catch (error) {
     setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
@@ -720,22 +735,25 @@ function initKakao() {
   }
 }
 
-function buildShareText() {
+function buildShareCard() {
   const formatted = formatKoreanDate(state.date);
   const shift = state.shift || getShiftFromList(state.date);
+  const title = `[근무표] ${formatted}`;
 
   if (!shift) {
-    return `[근무표 안내]\n${formatted}\n\n해당 날짜에 등록된 근무표가 없습니다.`;
+    return {
+      title,
+      description: "해당 날짜에 등록된 근무표가 없습니다.",
+    };
   }
 
-  return [
-    "[근무표 안내]",
-    formatted,
-    "",
-    `동작세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
-    "",
-    `구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
-  ].join("\n");
+  return {
+    title,
+    description: [
+      `동작세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
+      `구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
+    ].join("\n"),
+  };
 }
 
 async function api(path, options = {}) {
