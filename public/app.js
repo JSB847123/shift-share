@@ -461,7 +461,7 @@ function renderTodayShift() {
 
   els.todayShift.innerHTML = `
     <div class="today-grid">
-      ${renderWorkerGroup("세무서", state.todayShift.taxOfficeWorkers)}
+      ${renderWorkerGroup("동작세무서", state.todayShift.taxOfficeWorkers)}
       ${renderWorkerGroup("구청 신고창구", state.todayShift.districtOfficeWorkers)}
     </div>
     <p class="meta today-meta">최종 수정 ${escapeHtml(formatDateTime(state.todayShift.updatedAt))} · ${escapeHtml(
@@ -499,7 +499,7 @@ function renderShiftList() {
         <thead>
           <tr>
             <th>날짜</th>
-            <th>세무서</th>
+            <th>동작세무서</th>
             <th>구청 신고창구</th>
             <th>관리</th>
           </tr>
@@ -535,7 +535,7 @@ function renderShiftRow(shift) {
         <p class="meta">수정 ${escapeHtml(formatDateTime(shift.updatedAt))}</p>
         ${warnings}
       </td>
-      <td data-label="세무서">${renderWorkerNames(shift.taxOfficeWorkers)}</td>
+      <td data-label="동작세무서">${renderWorkerNames(shift.taxOfficeWorkers)}</td>
       <td data-label="구청 신고창구">${renderWorkerNames(shift.districtOfficeWorkers)}</td>
       <td data-label="관리">
         <div class="row-actions">
@@ -674,14 +674,22 @@ function shareToKakao() {
       return;
     }
 
+    const linkObject = { mobileWebUrl: shareUrl, webUrl: shareUrl };
+    const lines = text.split("\n");
+    const title = lines[0] || "근무표 안내";
+    const description = lines.slice(1).join("\n").trim() || "근무표를 확인해주세요.";
+
     Kakao.Share.sendDefault({
-      objectType: "text",
-      text,
-      link: {
-        mobileWebUrl: shareUrl,
-        webUrl: shareUrl,
+      objectType: "feed",
+      content: {
+        title,
+        description,
+        link: linkObject,
       },
-      buttonTitle: "근무표 열기",
+      buttons: [
+        { title: "근무표 공유", link: linkObject },
+        { title: "근무표 확인/수정", link: linkObject },
+      ],
     });
   } catch (error) {
     setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
@@ -729,7 +737,8 @@ function buildShareText() {
     "[근무표 안내]",
     formatted,
     "",
-    `세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
+    `동작세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
+    "",
     `구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
     "",
     "근무 변경/확인:",
@@ -884,7 +893,7 @@ function formatWorkersForHistory(value) {
   if (!value) return "없음";
   if (Array.isArray(value)) return value.map((item) => item || "비어 있음").join(", ");
   if (typeof value === "object") {
-    const tax = value.taxOfficeWorkers ? `세무서 ${formatWorkerLine(value.taxOfficeWorkers)}` : "";
+    const tax = value.taxOfficeWorkers ? `동작세무서 ${formatWorkerLine(value.taxOfficeWorkers)}` : "";
     const district = value.districtOfficeWorkers ? `구청 신고창구 ${formatWorkerLine(value.districtOfficeWorkers)}` : "";
     return [tax, district].filter(Boolean).join(" / ");
   }
