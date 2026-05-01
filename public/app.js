@@ -1,5 +1,5 @@
 const INITIAL_TODAY = todayString();
-const INITIAL_RANGE_END = formatDateValue(addDays(parseLocalDate(INITIAL_TODAY), 3));
+const INITIAL_RANGE_END = formatDateValue(addDays(parseLocalDate(INITIAL_TODAY), 4));
 
 const state = {
   date: getInitialDate(),
