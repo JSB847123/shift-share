@@ -669,7 +669,7 @@ const APP_HOME_URL = "https://shift-share.syn2bloom.me/";
 function shareToKakao() {
   try {
     const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
-    const card = buildShareCard();
+    const card = buildShareCard(shareUrl);
     const fallbackText = `${card.title}\n\n${card.description}\n\n${shareUrl}`;
 
     if (!state.config.kakaoJsKey) {
@@ -735,7 +735,7 @@ function initKakao() {
   }
 }
 
-function buildShareCard() {
+function buildShareCard(shareUrl) {
   const formatted = formatKoreanDate(state.date);
   const shift = state.shift || getShiftFromList(state.date);
   const title = `[근무표] ${formatted}`;
@@ -743,7 +743,7 @@ function buildShareCard() {
   if (!shift) {
     return {
       title,
-      description: "해당 날짜에 등록된 근무표가 없습니다.",
+      description: ["해당 날짜에 등록된 근무표가 없습니다.", "", shareUrl].join("\n"),
     };
   }
 
@@ -752,6 +752,8 @@ function buildShareCard() {
     description: [
       `• 동작세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
       `• 구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
+      "",
+      shareUrl,
     ].join("\n"),
   };
 }
