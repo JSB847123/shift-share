@@ -751,6 +751,7 @@ function buildShareCard() {
     title,
     description: [
       `동작세무서: ${formatWorkerLine(shift.taxOfficeWorkers)}`,
+      " ",
       `구청 신고창구: ${formatWorkerLine(shift.districtOfficeWorkers)}`,
     ].join("\n"),
   };
