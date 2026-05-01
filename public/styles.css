@@ -581,6 +581,7 @@ button:focus-visible {
   font-weight: 900;
   padding: 0;
   text-align: left;
+  white-space: nowrap;
 }
 
 .worker-stack {
