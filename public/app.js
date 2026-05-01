@@ -664,8 +664,6 @@ function renderHistoryItem(entry) {
   `;
 }
 
-const APP_HOME_URL = "https://shift-share.syn2bloom.me/";
-
 function shareToKakao() {
   try {
     const shareUrl = `${getShareBaseUrl()}/shifts/${state.date}`;
@@ -684,22 +682,10 @@ function shareToKakao() {
     }
 
     Kakao.Share.sendDefault({
-      objectType: "feed",
-      content: {
-        title: card.title,
-        description: card.description,
-        link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
-      },
-      buttons: [
-        {
-          title: "모바일 앱 이동",
-          link: { mobileWebUrl: APP_HOME_URL, webUrl: APP_HOME_URL },
-        },
-        {
-          title: "근무표 공유",
-          link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
-        },
-      ],
+      objectType: "text",
+      text: `${card.title}\n\n${card.description}`,
+      link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
+      buttonTitle: "근무표 보기",
     });
   } catch (error) {
     setStatus(`카카오톡 공유에 실패했습니다. ${error.message || ""}`.trim(), "error");
